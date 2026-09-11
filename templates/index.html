@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Deteksi Jamur Biji Jagung | GLCM, HSV & SVM</title>
+    <meta name="description" content="Aplikasi deteksi jamur pada biji jagung berbasis ekstraksi fitur GLCM (tekstur), HSV (warna), segmentasi Otsu & K-Means, serta klasifikasi Support Vector Machine (SVM).">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%220%22%20100%20100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-inner">
+                <div class="title-group">
+                    <h1>
+                        <span>🌽</span>
+                        Corn Kernel Mold & Blight Detection
+                    </h1>
+                    <p>Klasifikasi Biji Jagung Sehat vs Terkontaminasi Jamur menggunakan Machine Learning & Computer Vision</p>
+                    <div class="pipeline-tags">
+                        <span class="tag highlight">Otsu Thresholding</span>
+                        <span class="tag highlight">K-Means Clustering</span>
+                        <span class="tag">GLCM (4 Fitur Tekstur)</span>
+                        <span class="tag">HSV (3 Fitur Warna)</span>
+                        <span class="tag">SVM Classifier (RBF)</span>
+                    </div>
+                </div>
+                <div>
+                    <a href="https://journal.cattleyadf.org/index.php/jatilima/article/view/2270" target="_blank" rel="noopener noreferrer" class="paper-badge" id="link-paper">
+                        <span>📄</span>
+                        <span>Paper Jatilima 2026</span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Controls (Upload & Sample Picker) -->
+        <section class="controls-grid" aria-label="Input Citra">
+            <!-- Dropzone / Upload -->
+            <div class="card">
+                <div class="card-title">
+                    <span>📤</span>
+                    <span>Unggah Citra Biji Jagung</span>
+                </div>
+                <div class="drop-zone" id="drop-zone">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p><strong>Klik untuk memilih file</strong> atau seret gambar ke sini</p>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Mendukung format JPG, JPEG, PNG (Foto macro nampan biji / single kernel)</p>
+                    <input type="file" id="file-input" accept="image/*">
+                </div>
+            </div>
+
+            <!-- Quick Samples -->
+            <div class="card">
+                <div class="card-title">
+                    <span>🧪</span>
+                    <span>Uji Coba Cepat (Dataset Sampel)</span>
+                </div>
+                <div class="samples-container">
+                    <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                        Pilih citra sampel dari dataset untuk langsung melihat hasil deteksi dan analisis tahapan segmentasi:
+                    </p>
+                    <div class="sample-group-title">Sampel Citra Biji:</div>
+                    <div class="sample-buttons" id="sample-buttons">
+                        <!-- Populated by app.js -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <main id="results-section">
+            <!-- Diagnosis Banner -->
+            <section class="status-banner" id="status-banner">
+                <div class="status-info">
+                    <h2 id="status-title">Memuat Hasil...</h2>
+                    <p id="status-desc">Ringkasan hasil evaluasi dan persentase kontaminasi jamur.</p>
+                </div>
+            </section>
+
+            <!-- Metric Cards -->
+            <section class="metrics-row" aria-label="Ringkasan Metrik">
+                <div class="metric-card total">
+                    <div class="metric-value" id="metric-total">0</div>
+                    <div class="metric-label">Total Biji</div>
+                </div>
+                <div class="metric-card healthy">
+                    <div class="metric-value" id="metric-healthy">0</div>
+                    <div class="metric-label">Biji Sehat</div>
+                </div>
+                <div class="metric-card moldy">
+                    <div class="metric-value" id="metric-moldy">0</div>
+                    <div class="metric-label">Biji Berjamur</div>
+                </div>
+                <div class="metric-card rate">
+                    <div class="metric-value" id="metric-rate">0%</div>
+                    <div class="metric-label">Tingkat Kontam</div>
+                </div>
+            </section>
+
+            <!-- Methodology Stages Visualizer -->
+            <section class="card stages-card" aria-label="Visualisasi Tahapan Metodologi">
+                <div class="card-title">
+                    <span>🔬</span>
+                    <span>Visualisasi Langkah Pemrosesan Citra (Sesuai Paper)</span>
+                </div>
+                
+                <div class="stage-nav">
+                    <button class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">
+                        <span>🎯</span> Hasil Deteksi SVM
+                    </button>
+                    <button class="stage-btn" data-stage="original" id="btn-stage-original">
+                        <span>📷</span> Citra Asli
+                    </button>
+                    <button class="stage-btn" data-stage="gray-blur" id="btn-stage-gray-blur">
+                        <span>🌫️</span> Grayscale + Gaussian Blur
+                    </button>
+                    <button class="stage-btn" data-stage="otsu" id="btn-stage-otsu">
+                        <span>⚡</span> Segmentasi Otsu Mask
+                    </button>
+                </div>
+
+                <div class="stage-display">
+                    <div class="stage-img-wrapper">
+                        <img id="stage-image" src="" alt="Visualisasi Tahapan Pemrosesan">
+                    </div>
+                    <p class="stage-description" id="stage-desc"></p>
+                </div>
+            </section>
+
+            <!-- Individual Kernel Details (K-Means Spot Segmentation) -->
+            <section class="card" aria-label="Detail Segmentasi Tiap Biji">
+                <div class="card-title">
+                    <span>🔍</span>
+                    <span>Analisis Per-Biji & Isolasi Jamur (K-Means Clustering)</span>
+                </div>
+                <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                    Tiap biji jagung hasil segmentasi Otsu dianalisis area lesi jamurnya menggunakan K-Means Clustering dalam ruang warna HSV:
+                </p>
+                <div class="kernels-grid" id="kernels-grid">
+                    <!-- Populated by app.js -->
+                </div>
+            </section>
+
+            <!-- Feature Matrix Table -->
+            <section class="card" aria-label="Tabel Fitur GLCM dan HSV">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+                    <div class="card-title" style="margin-bottom: 0;">
+                        <span>📊</span>
+                        <span>Matriks Ekstraksi Fitur GLCM & HSV</span>
+                    </div>
+                    <button class="btn-sample" id="btn-export-csv" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border-color: rgba(59, 130, 246, 0.3);">
+                        <span>💾</span> Unduh CSV Fitur
+                    </button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table id="feature-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status SVM</th>
+                                <th>Conf</th>
+                                <th>% Jamur</th>
+                                <th>Contrast</th>
+                                <th>Correlation</th>
+                                <th>Energy</th>
+                                <th>Homogeneity</th>
+                                <th>Hue</th>
+                                <th>Saturation</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="spinner"></div>
+            <p style="font-weight: 500; font-size: 1.05rem;">Memproses citra dengan Otsu, K-Means, GLCM, HSV & SVM...</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Mohon tunggu beberapa detik</p>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>Sistem Deteksi Jamur pada Biji Jagung &copy; 2026 | Berdasarkan metodologi penelitian GLCM, HSV, Otsu & K-Means SVM</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
