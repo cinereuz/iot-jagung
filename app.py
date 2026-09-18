@@ -118,10 +118,15 @@ def run_detection(img):
             "bbox": k["bbox"],
             "prediction": k["prediction"],
             "is_moldy": k["is_moldy"],
+            "is_corn": k.get("is_corn"),  # BARU -- untuk debugging & tampilan frontend nanti
             "confidence": k["confidence"],
             "mold_ratio": k["mold_ratio"],
             "probabilities": k["probabilities"],
             "features": k["features"],
+            # BARU -- 3 field ini dipakai untuk mengecek & men-tuning deteksi 'bukan jagung'
+            "outlier_distance": k.get("outlier_distance"),
+            "outlier_threshold": k.get("outlier_threshold"),
+            "outlier_nearest_class": k.get("outlier_nearest_class"),
             "crop_b64": mat_to_base64(k["crop_img"]),
             "kmeans_b64": mat_to_base64(k["kmeans_img"]) if k["kmeans_img"] is not None else None,
             "mold_mask_b64": mat_to_base64(k["mold_mask"]) if k["mold_mask"] is not None else None

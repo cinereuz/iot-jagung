@@ -117,6 +117,22 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // BARU -- Helper kecil terpusat untuk menentukan "state" tiap kernel (biji).
+    // Dipakai di renderKernelCards() dan renderFeatureTable() supaya logic
+    // penentuan warna/label/teks tidak ditulis dobel di dua tempat.
+    // Return: { stateClass, label, colorHex }
+    function getKernelState(k) {
+        if (k.prediction === "bukan_jagung") {
+            // Abu-abu -- menandakan objek ini DIABAIKAN dari penilaian mutu,
+            // bukan salah satu dari sehat/terkontaminasi.
+            return { stateClass: "notcorn", label: "Bukan Jagung", colorHex: "#6b7280" };
+        }
+        if (k.is_moldy) {
+            return { stateClass: "moldy", label: "Terkontaminasi Jamur", colorHex: "var(--mold-red, #ef4444)" };
+        }
+        return { stateClass: "healthy", label: "Sehat", colorHex: "var(--healthy-green, #22c55e)" };
+    }
+
     // Render results
     function displayResults(data) {
         currentResults = data;
@@ -124,18 +140,59 @@ document.addEventListener("DOMContentLoaded", () => {
         const images = data.images;
         const kernels = data.kernels;
 
+        // BARU -- summary.bukan_jagung mungkin tidak ada kalau responsenya dari
+        // pipeline.py versi lama (backward compatible). Default ke 0 kalau kosong.
+        const bukanJagungCount = summary.bukan_jagung || 0;
+        // BARU -- total biji yang BENAR-BENAR jagung (dipakai untuk kalimat ringkasan
+        // yang lebih akurat, karena summary.total_biji sekarang bisa termasuk
+        // objek yang bukan jagung).
+        const totalJagung = summary.sehat + summary.terkontaminasi;
+
         // 1. Status Banner
         const statusBanner = document.getElementById("status-banner");
         statusBanner.className = `status-banner ${summary.badge}`;
+        // BARU -- badge "secondary" (kasus semua objek terdeteksi bukan jagung)
+        // kemungkinan belum punya style di style.css yang lama, jadi kita kasih
+        // fallback warna inline supaya tetap kelihatan jelas meski CSS belum diupdate.
+        if (summary.badge === "secondary") {
+            statusBanner.style.background = "rgba(107, 114, 128, 0.12)";
+            statusBanner.style.borderColor = "rgba(107, 114, 128, 0.4)";
+        } else {
+            statusBanner.style.background = "";
+            statusBanner.style.borderColor = "";
+        }
         document.getElementById("status-title").textContent = summary.status_mutu;
-        document.getElementById("status-desc").textContent = 
-            `Dari total ${summary.total_biji} biji yang terdeteksi, ${summary.sehat} biji sehat dan ${summary.terkontaminasi} biji terinfeksi jamur (${summary.persen_kontaminasi}% kontaminasi).`;
+
+        // BARU -- kalimat ringkasan sekarang menyebut jumlah bukan_jagung juga,
+        // dan pakai totalJagung (bukan summary.total_biji) supaya persentase
+        // kontaminasi yang disebut tetap konsisten dengan angka yang dihitung
+        // pipeline (kontaminasi dihitung dari objek yang memang jagung saja).
+        let descText = totalJagung > 0
+            ? `Dari ${totalJagung} biji jagung yang terdeteksi, ${summary.sehat} biji sehat dan ${summary.terkontaminasi} biji terinfeksi jamur (${summary.persen_kontaminasi}% kontaminasi).`
+            : `Tidak ada biji jagung yang terdeteksi pada citra ini.`;
+        if (bukanJagungCount > 0) {
+            descText += ` ${bukanJagungCount} objek lain terdeteksi bukan biji jagung dan diabaikan dari penilaian mutu.`;
+        }
+        document.getElementById("status-desc").textContent = descText;
 
         // 2. Metrics Cards
         document.getElementById("metric-total").textContent = summary.total_biji;
         document.getElementById("metric-healthy").textContent = summary.sehat;
         document.getElementById("metric-moldy").textContent = summary.terkontaminasi;
         document.getElementById("metric-rate").textContent = `${summary.persen_kontaminasi}%`;
+
+        // BARU -- kartu "Bukan Jagung" cuma ditampilkan kalau memang ada objek
+        // yang terdeteksi bukan jagung, supaya tidak mengganggu tampilan hasil
+        // deteksi normal (yang isinya cuma sehat/terkontaminasi).
+        const notCornCard = document.getElementById("metric-card-notcorn");
+        if (notCornCard) {
+            if (bukanJagungCount > 0) {
+                document.getElementById("metric-notcorn").textContent = bukanJagungCount;
+                notCornCard.style.display = "";
+            } else {
+                notCornCard.style.display = "none";
+            }
+        }
 
         // 3. Stage Visualizer Setup
         setupStages(images);
@@ -159,7 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const stageData = {
             "annotated": {
                 img: images.annotated,
-                desc: "Hasil akhir klasifikasi Support Vector Machine (SVM): Bounding box hijau menunjukkan biji sehat, sedangkan merah menunjukkan biji terkontaminasi jamur beserta persentase confidence."
+                desc: "Hasil akhir klasifikasi Support Vector Machine (SVM): Bounding box hijau menunjukkan biji sehat, merah menunjukkan biji terkontaminasi jamur, dan abu-abu menunjukkan objek yang terdeteksi BUKAN biji jagung (diabaikan dari penilaian mutu)."
             },
             "original": {
                 img: images.original,
@@ -197,16 +254,35 @@ document.addEventListener("DOMContentLoaded", () => {
         container.innerHTML = "";
 
         kernels.forEach(k => {
-            const card = document.createElement("div");
-            card.className = `kernel-card ${k.is_moldy ? "moldy" : "healthy"}`;
+            // BARU -- pakai helper getKernelState() alih-alih cuma cek k.is_moldy,
+            // supaya ada cabang ketiga untuk "bukan_jagung".
+            const state = getKernelState(k);
 
-            const labelText = k.is_moldy ? "Terkontaminasi Jamur" : "Sehat";
-            const badgeClass = k.is_moldy ? "moldy" : "healthy";
+            const card = document.createElement("div");
+            card.className = `kernel-card ${state.stateClass}`;
+            // BARU -- inline style fallback untuk state "notcorn" (belum tentu ada
+            // di style.css lama). Untuk "healthy"/"moldy" tetap pakai class CSS asli.
+            if (state.stateClass === "notcorn") {
+                card.style.borderColor = state.colorHex;
+            }
+
+            // BARU -- confidence bisa null untuk bukan_jagung, jadi tampilkan "-"
+            // alih-alih literal teks "null%".
+            const confidenceText = (k.confidence !== null && k.confidence !== undefined)
+                ? `${k.confidence}%`
+                : null;
+
+            // BARU -- untuk bukan_jagung, "Area Jamur X%" tidak relevan (itu cuma
+            // hasil clustering warna, bukan indikasi jamur beneran) -- diganti
+            // dengan info jarak outlier supaya tetap informatif & jujur secara metodologis.
+            const thirdThumbLabel = state.stateClass === "notcorn"
+                ? `Bukan Jagung (jarak ${k.outlier_distance ?? "-"} vs batas ${k.outlier_threshold ?? "-"})`
+                : `Area Jamur (${k.mold_ratio}%)`;
 
             card.innerHTML = `
                 <div class="kernel-header">
                     <span class="kernel-title">Biji #${k.kernel_id}</span>
-                    <span class="badge ${badgeClass}">${labelText}</span>
+                    <span class="badge ${state.stateClass}" ${state.stateClass === "notcorn" ? `style="background:${state.colorHex};color:#fff;"` : ""}>${state.label}</span>
                 </div>
                 <div class="kernel-visuals">
                     <div class="thumb-box">
@@ -219,7 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class="thumb-box">
                         <img src="${k.mold_mask_b64 || k.crop_b64}" alt="Mask Jamur">
-                        <span>Area Jamur (${k.mold_ratio}%)</span>
+                        <span>${thirdThumbLabel}</span>
                     </div>
                 </div>
                 <div class="kernel-features-mini">
@@ -230,6 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div>Hue: <span class="feature-val">${k.features.hue}</span></div>
                     <div>Sat: <span class="feature-val">${k.features.saturation}</span></div>
                 </div>
+                ${confidenceText === null ? `<div style="font-size:0.78rem;color:${state.colorHex};margin-top:0.5rem;">Confidence tidak berlaku -- objek ditolak sebelum tahap klasifikasi SVM (lihat detail jarak di atas)</div>` : ""}
             `;
             container.appendChild(card);
         });
@@ -241,12 +318,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
         kernels.forEach(k => {
             const tr = document.createElement("tr");
-            const statusColor = k.is_moldy ? "var(--mold-red)" : "var(--healthy-green)";
-            
+            // BARU -- pakai helper yang sama supaya konsisten dengan kartu kernel.
+            const state = getKernelState(k);
+
+            // BARU -- confidence null ditampilkan sebagai "-", bukan "null%".
+            const confidenceCell = (k.confidence !== null && k.confidence !== undefined)
+                ? `${k.confidence}%`
+                : "-";
+
+            // BARU -- label status diformat lebih rapi ("BUKAN JAGUNG" bukan "BUKAN_JAGUNG").
+            const statusLabel = k.prediction.replace(/_/g, " ").toUpperCase();
+
             tr.innerHTML = `
                 <td>#${k.kernel_id}</td>
-                <td style="color: ${statusColor}; font-weight: 600;">${k.prediction.toUpperCase()}</td>
-                <td>${k.confidence}%</td>
+                <td style="color: ${state.colorHex}; font-weight: 600;">${statusLabel}</td>
+                <td>${confidenceCell}</td>
                 <td>${k.mold_ratio}%</td>
                 <td>${k.features.contrast}</td>
                 <td>${k.features.correlation}</td>
@@ -268,7 +354,9 @@ document.addEventListener("DOMContentLoaded", () => {
             
             let csv = "ID,Status,Confidence(%),AreaJamur(%),Contrast,Correlation,Energy,Homogeneity,Hue,Saturation,Value\n";
             currentResults.kernels.forEach(k => {
-                csv += `${k.kernel_id},${k.prediction},${k.confidence},${k.mold_ratio},${k.features.contrast},${k.features.correlation},${k.features.energy},${k.features.homogeneity},${k.features.hue},${k.features.saturation},${k.features.value}\n`;
+                // BARU -- confidence null ditulis string kosong di CSV, bukan literal "null".
+                const confVal = (k.confidence !== null && k.confidence !== undefined) ? k.confidence : "";
+                csv += `${k.kernel_id},${k.prediction},${confVal},${k.mold_ratio},${k.features.contrast},${k.features.correlation},${k.features.energy},${k.features.homogeneity},${k.features.hue},${k.features.saturation},${k.features.value}\n`;
             });
 
             const blob = new Blob([csv], { type: "text/csv" });

@@ -2,6 +2,10 @@
 Corn Kernel Mold & Disease Detection Pipeline
 Based on: 'Detection of Corn Leaf Blight Disease Based on GLCM and HSV Feature Extraction Using Support Vector Machine'
 Adapted for corn kernel mold/fungus detection.
+
+UPDATE: ditambah deteksi "bukan_jagung" pakai pendekatan negasi (novelty/outlier detection
+berbasis jarak Mahalanobis terhadap data training yang sudah ada) -- tanpa perlu dataset
+foto tambahan untuk kelas ketiga, sesuai arahan dosen.
 """
 
 import os
@@ -12,21 +16,44 @@ import joblib
 from skimage.feature import graycomatrix, graycoprops
 
 class CornDiseasePipeline:
-    def __init__(self, model_path="models/svm_model_v1.joblib", scaler_path="models/scaler.joblib"):
+    def __init__(self, model_path="models/svm_model_v1.joblib", scaler_path="models/scaler.joblib",
+                 outlier_stats_path="models/outlier_stats.joblib", outlier_margin=1.15):
         self.model_path = model_path
         self.scaler_path = scaler_path
+        self.outlier_stats_path = outlier_stats_path
+        # outlier_margin: kelonggaran tambahan di atas threshold hasil training (15% lebih
+        # longgar). Ini penting supaya biji jagung asli yang kebetulan agak "ekstrem" (mis.
+        # dari batch foto overexposed) tidak gampang salah ditolak jadi "bukan jagung".
+        # Kalau nanti false negative (biji jagung asli malah dibilang bukan jagung) masih
+        # sering terjadi, naikkan angka ini (mis. 1.3). Kalau sebaliknya (benda lain malah
+        # lolos dianggap jagung), turunkan (mis. 1.05).
+        self.outlier_margin = outlier_margin
         self.model = None
         self.scaler = None
+        self.outlier_stats = None  # dict: {"sehat": {...}, "terkontaminasi": {...}}
         self.feature_names = ["contrast", "correlation", "energy", "homogeneity", "hue", "saturation", "value"]
         self.load_models()
 
     def load_models(self):
-        """Loads trained SVM model and StandardScaler."""
+        """Loads trained SVM model, StandardScaler, dan statistik outlier (untuk deteksi 'bukan jagung')."""
         if os.path.exists(self.model_path) and os.path.exists(self.scaler_path):
             self.model = joblib.load(self.model_path)
             self.scaler = joblib.load(self.scaler_path)
-            return True
-        return False
+        else:
+            return False
+
+        # Statistik outlier bersifat opsional: kalau belum dihitung (belum jalanin
+        # compute_outlier_stats.py), pipeline tetap jalan seperti sebelumnya (tanpa deteksi
+        # "bukan jagung"), supaya tidak merusak fungsi yang sudah ada.
+        if os.path.exists(self.outlier_stats_path):
+            self.outlier_stats = joblib.load(self.outlier_stats_path)
+        else:
+            self.outlier_stats = None
+            print(f"[Peringatan] '{self.outlier_stats_path}' tidak ditemukan -- deteksi "
+                  f"'bukan jagung' dinonaktifkan, model hanya memprediksi sehat/terkontaminasi. "
+                  f"Jalankan compute_outlier_stats.py untuk mengaktifkannya.")
+
+        return True
 
     def preprocess_image(self, img, target_size=(128, 128)):
         """
@@ -227,9 +254,72 @@ class CornDiseasePipeline:
             "value": round(v_mean, 2)
         }
 
+    def _mahalanobis_distance(self, x_scaled, mean_vec, cov_inv):
+        """
+        Menghitung jarak Mahalanobis dari 1 titik data (x_scaled) ke sebuah titik pusat
+        (mean_vec), dengan mempertimbangkan bentuk sebaran data training (cov_inv) --
+        BUKAN jarak lurus biasa (Euclidean).
+
+        Kenapa bukan jarak lurus biasa? Karena beberapa fitur (mis. contrast vs hue) bisa
+        punya sebaran/korelasi yang berbeda-beda. Mahalanobis distance otomatis "menormalkan"
+        itu, jadi 1 satuan jarak di fitur yang sebarannya sempit dihitung lebih signifikan
+        daripada 1 satuan jarak di fitur yang sebarannya lebar.
+        """
+        diff = x_scaled - mean_vec
+        # Rumus: sqrt( (x - mean) . cov_inv . (x - mean)^T )
+        distance = np.sqrt(diff @ cov_inv @ diff.T)
+        return float(distance)
+
+    def check_is_corn(self, X_scaled_row):
+        """
+        Step 3.5 (BARU): Novelty/Outlier Detection -- deteksi "bukan jagung" TANPA perlu
+        dataset foto kelas ketiga (pendekatan negasi, sesuai arahan dosen).
+
+        Logikanya: dari 547 data training (sehat + terkontaminasi) yang sudah ada, kita tahu
+        persis "wilayah" ruang fitur (GLCM+HSV) yang biasanya ditempati biji jagung asli.
+        Kalau fitur objek baru terlalu jauh dari KEDUA kelas itu, objek itu dianggap BUKAN
+        biji jagung -- tanpa pernah dilatih dengan contoh foto "bukan jagung" sama sekali.
+
+        Return:
+            is_corn (bool): True kalau dianggap biji jagung (lolos novelty check)
+            nearest_class (str atau None): kelas training terdekat (buat info/debug)
+            distance (float atau None): jarak Mahalanobis ke kelas terdekat itu
+            threshold (float atau None): batas jarak yang dipakai (sudah termasuk margin)
+        """
+        if self.outlier_stats is None:
+            # Statistik belum dihitung (compute_outlier_stats.py belum dijalankan) --
+            # fallback ke perilaku lama: semua objek dianggap jagung, tidak ada penolakan.
+            return True, None, None, None
+
+        best_class = None
+        best_distance = float("inf")
+        best_threshold = None
+
+        # Cek jarak ke SETIAP kelas (sehat & terkontaminasi), ambil yang PALING DEKAT.
+        # Alasan pakai yang paling dekat: objek dianggap "jagung" kalau dia mirip dengan
+        # SALAH SATU dari kedua kelas itu (tidak perlu mirip keduanya).
+        for label, stats in self.outlier_stats.items():
+            dist = self._mahalanobis_distance(X_scaled_row, stats["mean"], stats["cov_inv"])
+            if dist < best_distance:
+                best_distance = dist
+                best_class = label
+                best_threshold = stats["distance_threshold"]
+
+        # Terapkan margin toleransi (lihat penjelasan outlier_margin di __init__)
+        effective_threshold = best_threshold * self.outlier_margin
+        is_corn = best_distance <= effective_threshold
+
+        return is_corn, best_class, best_distance, effective_threshold
+
     def predict_single(self, features_dict):
         """
-        Step 4: Classification using trained SVM model and StandardScaler.
+        Step 4: Klasifikasi.
+        Urutan BARU (setelah ditambah negasi):
+          4a. Scaling fitur (seperti sebelumnya).
+          4b. BARU -- Novelty check: apakah fitur ini masuk "wilayah" biji jagung?
+              Kalau TIDAK -> langsung dilabeli "bukan_jagung", SVM tidak usah dipanggil.
+          4c. Kalau LOLOS (dianggap jagung) -> baru diklasifikasi sehat/terkontaminasi
+              pakai SVM, persis seperti kode sebelumnya.
         """
         if self.model is None or self.scaler is None:
             raise RuntimeError("Model SVM atau Scaler belum dimuat.")
@@ -245,6 +335,24 @@ class CornDiseasePipeline:
         ]])
 
         X_scaled = self.scaler.transform(feat_values)
+
+        # --- Langkah baru: novelty/outlier check (pendekatan negasi) ---
+        is_corn, nearest_class, distance, threshold = self.check_is_corn(X_scaled[0])
+
+        if not is_corn:
+            # Objek dianggap BUKAN biji jagung -- berhenti di sini, tidak perlu tanya SVM
+            # sama sekali (SVM memang tidak pernah dilatih untuk kasus ini).
+            return {
+                "prediction": "bukan_jagung",
+                "confidence": None,
+                "probabilities": {"sehat": 0.0, "terkontaminasi": 0.0},
+                "decision_score": None,
+                "outlier_distance": round(distance, 3) if distance is not None else None,
+                "outlier_threshold": round(threshold, 3) if threshold is not None else None,
+                "outlier_nearest_class": nearest_class
+            }
+
+        # --- Kalau lolos novelty check, lanjut klasifikasi SVM seperti kode semula ---
         prediction = self.model.predict(X_scaled)[0]
 
         decision = self.model.decision_function(X_scaled)[0]
@@ -261,7 +369,10 @@ class CornDiseasePipeline:
             "prediction": prediction,
             "confidence": prob_dict.get(prediction, 90.0),
             "probabilities": prob_dict,
-            "decision_score": round(float(decision), 3)
+            "decision_score": round(float(decision), 3),
+            "outlier_distance": round(distance, 3) if distance is not None else None,
+            "outlier_threshold": round(threshold, 3) if threshold is not None else None,
+            "outlier_nearest_class": nearest_class
         }
 
     def process_image(self, img):
@@ -272,7 +383,8 @@ class CornDiseasePipeline:
            - Otsu Thresholding to isolate individual corn kernels
            - K-Means Clustering on each kernel to isolate fungal mold infection
         3. Feature Extraction (GLCM: Contrast, Correlation, Energy, Homogeneity; HSV: H, S, V)
-        4. Classification (SVM + Scaler)
+        3.5. BARU -- Novelty check (negasi): tolak objek yang bukan biji jagung
+        4. Classification (SVM + Scaler) -- hanya untuk objek yang lolos novelty check
         5. Annotated Visuals & Batch Report Generation
         """
         prep = self.preprocess_image(img)
@@ -294,6 +406,7 @@ class CornDiseasePipeline:
         kernel_results = []
         sehat_count = 0
         kontam_count = 0
+        bukan_jagung_count = 0  # BARU
 
         for k in kernels:
             crop = k["crop"]
@@ -303,18 +416,23 @@ class CornDiseasePipeline:
             # Feature extraction (GLCM + HSV)
             features = self.extract_features(crop)
 
-            # SVM prediction
+            # SVM prediction (sekarang termasuk novelty check di dalamnya)
             pred_res = self.predict_single(features)
             label = pred_res["prediction"]
 
             if label == "sehat":
                 sehat_count += 1
-                box_color = (46, 204, 113) # Green BGR
+                box_color = (46, 204, 113)  # Green BGR
                 label_text = f"Sehat ({pred_res['confidence']}%)"
-            else:
+            elif label == "terkontaminasi":
                 kontam_count += 1
-                box_color = (60, 76, 231) # Red BGR
+                box_color = (60, 76, 231)  # Red BGR
                 label_text = f"Jamur ({pred_res['confidence']}%)"
+            else:
+                # label == "bukan_jagung"
+                bukan_jagung_count += 1
+                box_color = (150, 150, 150)  # Abu-abu BGR -- menandakan objek diabaikan
+                label_text = "Bukan Jagung"
 
             x, y, w, h = k["bbox"]
             cv2.rectangle(annotated_img, (x, y), (x + w, y + h), box_color, 2)
@@ -333,20 +451,32 @@ class CornDiseasePipeline:
                 "kernel_id": k["kernel_id"],
                 "bbox": [int(v) for v in k["bbox"]],
                 "prediction": label,
-                "is_moldy": (label != "sehat"),
+                # is_moldy sekarang HANYA true untuk "terkontaminasi" -- sebelumnya kode lama
+                # pakai (label != "sehat"), yang kalau tidak diperbaiki akan salah menghitung
+                # "bukan_jagung" sebagai kontaminasi juga.
+                "is_moldy": (label == "terkontaminasi"),
+                "is_corn": (label != "bukan_jagung"),  # field baru, berguna untuk frontend
                 "confidence": pred_res["confidence"],
                 "features": features,
                 "mold_ratio": round(kmeans_res["mold_ratio"] * 100, 1) if kmeans_res else 0.0,
                 "probabilities": pred_res["probabilities"],
+                "outlier_distance": pred_res.get("outlier_distance"),
+                "outlier_threshold": pred_res.get("outlier_threshold"),
                 "crop_img": crop,
                 "kmeans_img": kmeans_res["clustered_bgr"] if kmeans_res else None,
                 "mold_mask": kmeans_res["mold_mask"] if kmeans_res else None
             })
 
         total_kernels = len(kernel_results)
-        contam_pct = round((kontam_count / total_kernels) * 100, 1) if total_kernels > 0 else 0.0
+        # Persentase kontaminasi sekarang dihitung dari objek yang MEMANG biji jagung saja
+        # (sehat + terkontaminasi), supaya objek "bukan_jagung" tidak menggeser persentase.
+        total_jagung = sehat_count + kontam_count
+        contam_pct = round((kontam_count / total_jagung) * 100, 1) if total_jagung > 0 else 0.0
 
-        if contam_pct == 0.0:
+        if total_jagung == 0:
+            quality_status = "Tidak ada biji jagung terdeteksi pada citra ini"
+            status_badge = "secondary"
+        elif contam_pct == 0.0:
             quality_status = "Kualitas Sangat Baik (Aman Konsumsi & Benih)"
             status_badge = "success"
         elif contam_pct <= 15.0:
@@ -361,6 +491,7 @@ class CornDiseasePipeline:
                 "total_biji": total_kernels,
                 "sehat": sehat_count,
                 "terkontaminasi": kontam_count,
+                "bukan_jagung": bukan_jagung_count,  # field baru
                 "persen_kontaminasi": contam_pct,
                 "status_mutu": quality_status,
                 "badge": status_badge

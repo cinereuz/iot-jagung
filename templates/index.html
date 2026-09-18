@@ -96,6 +96,13 @@
                     <div class="metric-value" id="metric-moldy">0</div>
                     <div class="metric-label">Biji Berjamur</div>
                 </div>
+                <!-- BARU -- kartu ini disembunyikan default (style="display:none"), baru
+                     dimunculkan oleh app.js kalau summary.bukan_jagung > 0, supaya tidak
+                     mengganggu tampilan hasil deteksi normal yang tidak ada objek asing. -->
+                <div class="metric-card" id="metric-card-notcorn" style="display: none;">
+                    <div class="metric-value" id="metric-notcorn">0</div>
+                    <div class="metric-label">Bukan Jagung</div>
+                </div>
                 <div class="metric-card rate">
                     <div class="metric-value" id="metric-rate">0%</div>
                     <div class="metric-label">Tingkat Kontam</div>
@@ -139,7 +146,7 @@
                     <span>Analisis Per-Biji & Isolasi Jamur (K-Means Clustering)</span>
                 </div>
                 <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
-                    Tiap biji jagung hasil segmentasi Otsu dianalisis area lesi jamurnya menggunakan K-Means Clustering dalam ruang warna HSV:
+                    Tiap biji jagung hasil segmentasi Otsu dianalisis area lesi jamurnya menggunakan K-Means Clustering dalam ruang warna HSV. Objek yang tidak dikenali sebagai biji jagung (ditandai badge abu-abu "Bukan Jagung") diabaikan dari penilaian mutu:
                 </p>
                 <div class="kernels-grid" id="kernels-grid">
                     <!-- Populated by app.js -->
