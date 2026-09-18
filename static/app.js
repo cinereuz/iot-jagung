@@ -124,13 +124,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function getKernelState(k) {
         if (k.prediction === "bukan_jagung") {
             // Abu-abu -- menandakan objek ini DIABAIKAN dari penilaian mutu,
-            // bukan salah satu dari sehat/terkontaminasi.
-            return { stateClass: "notcorn", label: "Bukan Jagung", colorHex: "#6b7280" };
+            // bukan salah satu dari sehat/terkontaminasi. Warnanya didefinisikan
+            // di style.css lewat variabel --notcorn-gray.
+            return { stateClass: "notcorn", label: "Bukan Jagung", colorHex: "var(--notcorn-gray)" };
         }
         if (k.is_moldy) {
-            return { stateClass: "moldy", label: "Terkontaminasi Jamur", colorHex: "var(--mold-red, #ef4444)" };
+            return { stateClass: "moldy", label: "Terkontaminasi Jamur", colorHex: "var(--mold-red)" };
         }
-        return { stateClass: "healthy", label: "Sehat", colorHex: "var(--healthy-green, #22c55e)" };
+        return { stateClass: "healthy", label: "Sehat", colorHex: "var(--healthy-green)" };
     }
 
     // Render results
@@ -150,17 +151,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // 1. Status Banner
         const statusBanner = document.getElementById("status-banner");
+        // style.css sekarang sudah punya rule .status-banner.secondary untuk kasus
+        // "semua objek bukan jagung", jadi cukup ganti class-nya saja seperti
+        // badge success/warning/danger yang sudah ada.
         statusBanner.className = `status-banner ${summary.badge}`;
-        // BARU -- badge "secondary" (kasus semua objek terdeteksi bukan jagung)
-        // kemungkinan belum punya style di style.css yang lama, jadi kita kasih
-        // fallback warna inline supaya tetap kelihatan jelas meski CSS belum diupdate.
-        if (summary.badge === "secondary") {
-            statusBanner.style.background = "rgba(107, 114, 128, 0.12)";
-            statusBanner.style.borderColor = "rgba(107, 114, 128, 0.4)";
-        } else {
-            statusBanner.style.background = "";
-            statusBanner.style.borderColor = "";
-        }
         document.getElementById("status-title").textContent = summary.status_mutu;
 
         // BARU -- kalimat ringkasan sekarang menyebut jumlah bukan_jagung juga,
@@ -259,12 +253,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const state = getKernelState(k);
 
             const card = document.createElement("div");
+            // style.css sekarang sudah punya rule .kernel-card.notcorn (border atas
+            // abu-abu), jadi cukup pasang class-nya saja -- sama seperti healthy/moldy.
             card.className = `kernel-card ${state.stateClass}`;
-            // BARU -- inline style fallback untuk state "notcorn" (belum tentu ada
-            // di style.css lama). Untuk "healthy"/"moldy" tetap pakai class CSS asli.
-            if (state.stateClass === "notcorn") {
-                card.style.borderColor = state.colorHex;
-            }
 
             // BARU -- confidence bisa null untuk bukan_jagung, jadi tampilkan "-"
             // alih-alih literal teks "null%".
@@ -282,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
             card.innerHTML = `
                 <div class="kernel-header">
                     <span class="kernel-title">Biji #${k.kernel_id}</span>
-                    <span class="badge ${state.stateClass}" ${state.stateClass === "notcorn" ? `style="background:${state.colorHex};color:#fff;"` : ""}>${state.label}</span>
+                    <span class="badge ${state.stateClass}">${state.label}</span>
                 </div>
                 <div class="kernel-visuals">
                     <div class="thumb-box">
