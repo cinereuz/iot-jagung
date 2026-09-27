@@ -72,6 +72,36 @@
             </div>
         </section>
 
+        <!-- BARU -- Realtime Webcam Detection -->
+        <section class="card" aria-label="Deteksi Realtime Webcam" style="margin-bottom: 2rem;">
+            <div class="card-title">
+                <span>🎥</span>
+                <span>Deteksi Realtime (Webcam)</span>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                Nyalakan kamera untuk deteksi biji jagung secara langsung. Server memproses satu frame kamera setiap beberapa detik sekali.
+            </p>
+
+            <div class="realtime-controls">
+                <button class="btn-sample" id="btn-start-webcam">▶️ Mulai Kamera</button>
+                <button class="btn-sample" id="btn-stop-webcam" disabled>⏹️ Hentikan Kamera</button>
+                <span id="realtime-status" class="realtime-status">Kamera belum aktif</span>
+            </div>
+
+            <div class="realtime-view">
+                <!-- video: feed kamera mentah, boleh dilihat user -->
+                <video id="webcam-video" autoplay playsinline muted></video>
+                <!-- canvas SENGAJA disembunyikan -- cuma dipakai sebagai tempat "menjepret"
+                     1 frame dari video, tidak pernah ditampilkan ke user -->
+                <canvas id="webcam-canvas" style="display: none;"></canvas>
+                <!-- img inilah yang ditampilkan ke user: hasil balikan server,
+                     sudah ada kotak-kotak deteksi (annotated) -->
+                <img id="realtime-output" alt="Hasil Deteksi Realtime">
+            </div>
+
+            <div class="realtime-summary" id="realtime-summary"></div>
+        </section>
+
         <!-- Results Section -->
         <main id="results-section">
             <!-- Diagnosis Banner -->

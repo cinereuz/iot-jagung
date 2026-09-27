@@ -176,16 +176,13 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("metric-rate").textContent = `${summary.persen_kontaminasi}%`;
 
         // BARU -- kartu "Bukan Jagung" cuma ditampilkan kalau memang ada objek
-        // yang terdeteksi bukan jagung, supaya tidak mengganggu tampilan hasil
-        // deteksi normal (yang isinya cuma sehat/terkontaminasi).
-        const notCornCard = document.getElementById("metric-card-notcorn");
-        if (notCornCard) {
-            if (bukanJagungCount > 0) {
-                document.getElementById("metric-notcorn").textContent = bukanJagungCount;
-                notCornCard.style.display = "";
-            } else {
-                notCornCard.style.display = "none";
-            }
+        // yang terdeteksi bukan jagung, supaya tidak mengganggu tampilan normal.
+        const notcornCard = document.getElementById("metric-card-notcorn");
+        if (bukanJagungCount > 0) {
+            notcornCard.style.display = "";
+            document.getElementById("metric-notcorn").textContent = bukanJagungCount;
+        } else {
+            notcornCard.style.display = "none";
         }
 
         // 3. Stage Visualizer Setup
@@ -359,6 +356,125 @@ document.addEventListener("DOMContentLoaded", () => {
             URL.revokeObjectURL(url);
         });
     }
+
+    // ============================
+    // BARU -- REALTIME WEBCAM DETECTION
+    // ============================
+    const webcamVideo = document.getElementById("webcam-video");
+    const webcamCanvas = document.getElementById("webcam-canvas");
+    const realtimeOutput = document.getElementById("realtime-output");
+    const realtimeSummary = document.getElementById("realtime-summary");
+    const realtimeStatus = document.getElementById("realtime-status");
+    const btnStartWebcam = document.getElementById("btn-start-webcam");
+    const btnStopWebcam = document.getElementById("btn-stop-webcam");
+
+    let webcamStream = null;       // menyimpan stream kamera aktif, supaya bisa dimatikan nanti
+    let realtimeIntervalId = null; // id dari setInterval, supaya bisa dihentikan saat klik stop
+    let isProcessingFrame = false; // "kunci" -- cegah kirim frame baru sebelum frame sebelumnya selesai diproses server
+
+    const REALTIME_INTERVAL_MS = 1000; // jeda ambil frame: 1000ms = 1 kali per detik (bisa diubah)
+
+    async function startWebcam() {
+        try {
+            // { video: true } artinya kita cuma minta akses video, bukan audio/mikrofon.
+            // Browser akan menampilkan dialog izin ke user di sini.
+            webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (err) {
+            alert("Tidak bisa mengakses kamera: " + err.message);
+            return;
+        }
+
+        webcamVideo.srcObject = webcamStream; // sambungkan stream kamera ke elemen <video>
+
+        btnStartWebcam.disabled = true;
+        btnStopWebcam.disabled = false;
+        realtimeStatus.textContent = "Kamera aktif, memulai deteksi...";
+
+        // setInterval memanggil captureAndDetectFrame() berulang-ulang tiap
+        // REALTIME_INTERVAL_MS milidetik, selama kamera masih menyala.
+        realtimeIntervalId = setInterval(captureAndDetectFrame, REALTIME_INTERVAL_MS);
+    }
+
+    function stopWebcam() {
+        if (realtimeIntervalId) {
+            clearInterval(realtimeIntervalId); // hentikan pengambilan frame berikutnya
+            realtimeIntervalId = null;
+        }
+        if (webcamStream) {
+            // Matikan tiap "track" (jalur video) di dalam stream -- ini yang benar-benar
+            // mematikan lampu indikator kamera di laptop/HP, bukan cuma menyembunyikan videonya.
+            webcamStream.getTracks().forEach(track => track.stop());
+            webcamStream = null;
+        }
+        webcamVideo.srcObject = null;
+
+        btnStartWebcam.disabled = false;
+        btnStopWebcam.disabled = true;
+        realtimeStatus.textContent = "Kamera belum aktif";
+    }
+
+    async function captureAndDetectFrame() {
+        // Kalau frame sebelumnya masih diproses server, jangan kirim frame baru dulu --
+        // supaya request tidak menumpuk kalau server ternyata lebih lambat dari interval.
+        if (isProcessingFrame) return;
+
+        // Samakan ukuran canvas dengan ukuran asli video, lalu "gambar ulang" frame
+        // video saat ini ke dalam canvas -- ini teknik standar untuk "menjepret"
+        // 1 frame diam dari video yang sedang berjalan.
+        webcamCanvas.width = webcamVideo.videoWidth;
+        webcamCanvas.height = webcamVideo.videoHeight;
+        const ctx = webcamCanvas.getContext("2d");
+        ctx.drawImage(webcamVideo, 0, 0, webcamCanvas.width, webcamCanvas.height);
+
+        // Ubah isi canvas jadi teks base64 JPEG. Kualitas 0.8 (dari maksimal 1.0)
+        // dipilih supaya ukuran datanya tidak terlalu besar tapi kualitasnya tetap layak.
+        const frameDataUrl = webcamCanvas.toDataURL("image/jpeg", 0.8);
+
+        isProcessingFrame = true;
+        try {
+            const res = await fetch("/api/detect/frame", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: frameDataUrl })
+            });
+
+            if (!res.ok) {
+                // Kalau 1 frame gagal diproses, jangan hentikan seluruh sesi realtime --
+                // cukup catat di status, lanjut coba lagi di frame berikutnya.
+                realtimeStatus.textContent = "Frame ini gagal diproses, mencoba lagi...";
+                return;
+            }
+
+            const data = await res.json();
+            renderRealtimeResult(data);
+        } catch (err) {
+            realtimeStatus.textContent = "Koneksi ke server bermasalah...";
+        } finally {
+            isProcessingFrame = false;
+        }
+    }
+
+    function renderRealtimeResult(data) {
+        realtimeOutput.src = data.annotated;
+
+        const s = data.summary;
+        realtimeStatus.textContent = `Live -- ${s.total_biji} biji terdeteksi`;
+
+        let text = s.total_biji > 0
+            ? `${s.sehat} sehat, ${s.terkontaminasi} terkontaminasi jamur (${s.persen_kontaminasi}%)`
+            : "Belum ada biji jagung terdeteksi di frame ini.";
+        if (s.bukan_jagung > 0) {
+            text += ` -- ${s.bukan_jagung} objek bukan jagung diabaikan.`;
+        }
+        realtimeSummary.textContent = text;
+    }
+
+    btnStartWebcam.addEventListener("click", startWebcam);
+    btnStopWebcam.addEventListener("click", stopWebcam);
+
+    // Kalau user pindah/tutup tab tanpa klik "Hentikan Kamera" dulu, pastikan
+    // kamera tetap dimatikan supaya lampu indikator kamera tidak terus menyala.
+    window.addEventListener("beforeunload", stopWebcam);
 
     loadSamples();
 });

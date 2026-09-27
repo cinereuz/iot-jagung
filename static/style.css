@@ -284,6 +284,48 @@ header {
 .dot.green { background: var(--healthy-green); box-shadow: 0 0 8px var(--healthy-green); }
 .dot.red { background: var(--mold-red); box-shadow: 0 0 8px var(--mold-red); }
 
+/* BARU -- Realtime Webcam Detection */
+.realtime-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.realtime-status {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.realtime-view {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .realtime-view {
+        grid-template-columns: 1fr;
+    }
+}
+
+#webcam-video,
+#realtime-output {
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: #000;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+
+.realtime-summary {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
 /* Results Section */
 #results-section {
     display: none;
