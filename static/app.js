@@ -289,8 +289,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="kernel-features-mini">
                     <div>Contrast: <span class="feature-val">${k.features.contrast}</span></div>
                     <div>Homogeneity: <span class="feature-val">${k.features.homogeneity}</span></div>
-                    <div>Energy: <span class="feature-val">${k.features.energy}</span></div>
                     <div>Correlation: <span class="feature-val">${k.features.correlation}</span></div>
+                    <div>Energy: <span class="feature-val">${k.features.energy}</span></div>
                     <div>Hue: <span class="feature-val">${k.features.hue}</span></div>
                     <div>Sat: <span class="feature-val">${k.features.saturation}</span></div>
                 </div>
@@ -300,27 +300,83 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // "bukan_jagung" -> "Bukan Jagung", "sehat" -> "Sehat" (Title Case sesuai desain)
+    function formatStatus(prediction) {
+        return String(prediction)
+            .split("_")
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(" ");
+    }
+
+    // confidence null ditampilkan "-", bukan "null%"
+    function formatConfidence(k) {
+        return (k.confidence !== null && k.confidence !== undefined) ? `${k.confidence}%` : "-";
+    }
+
+    // --- State pager (tampilan mobile: 1 biji per halaman) ---
+    let pagerKernels = [];
+    let pagerIndex = 0;
+    const pagerCard = document.getElementById("pager-card");
+    const pagerInfo = document.getElementById("pager-info");
+    const pagerPrev = document.getElementById("pager-prev");
+    const pagerNext = document.getElementById("pager-next");
+
+    function renderPager() {
+        const total = pagerKernels.length;
+        if (total === 0) {
+            pagerCard.innerHTML = `<div class="pager-empty">Belum ada biji terdeteksi.</div>`;
+            pagerInfo.textContent = "0 dari 0";
+            pagerPrev.disabled = true;
+            pagerNext.disabled = true;
+            return;
+        }
+
+        const k = pagerKernels[pagerIndex];
+        const state = getKernelState(k);
+        const rows = [
+            ["Status SVM", `<span class="st-${state.stateClass}">${formatStatus(k.prediction)}</span>`],
+            ["Conf", formatConfidence(k)],
+            ["% Jamur", `${k.mold_ratio}%`],
+            ["Contrast", k.features.contrast],
+            ["Correlation", k.features.correlation],
+            ["Energy", k.features.energy],
+            ["Homogeneity", k.features.homogeneity],
+            ["Hue", k.features.hue],
+            ["Saturation", k.features.saturation],
+            ["Value", k.features.value]
+        ];
+
+        pagerCard.innerHTML =
+            `<div class="pager-head">
+                <img class="pager-thumb" src="${k.crop_b64}" alt="Crop biji #${k.kernel_id}">
+                <span class="pager-id">#${k.kernel_id}</span>
+            </div>` +
+            rows.map(r => `<div class="pager-row"><span class="pager-label">${r[0]}</span><span class="pager-value">${r[1]}</span></div>`).join("");
+
+        pagerInfo.textContent = `${pagerIndex + 1} dari ${total}`;
+        pagerPrev.disabled = pagerIndex === 0;
+        pagerNext.disabled = pagerIndex === total - 1;
+    }
+
+    pagerPrev.addEventListener("click", () => {
+        if (pagerIndex > 0) { pagerIndex--; renderPager(); }
+    });
+    pagerNext.addEventListener("click", () => {
+        if (pagerIndex < pagerKernels.length - 1) { pagerIndex++; renderPager(); }
+    });
+
     function renderFeatureTable(kernels) {
         const tbody = document.querySelector("#feature-table tbody");
         tbody.innerHTML = "";
 
         kernels.forEach(k => {
             const tr = document.createElement("tr");
-            // BARU -- pakai helper yang sama supaya konsisten dengan kartu kernel.
             const state = getKernelState(k);
-
-            // BARU -- confidence null ditampilkan sebagai "-", bukan "null%".
-            const confidenceCell = (k.confidence !== null && k.confidence !== undefined)
-                ? `${k.confidence}%`
-                : "-";
-
-            // BARU -- label status diformat lebih rapi ("BUKAN JAGUNG" bukan "BUKAN_JAGUNG").
-            const statusLabel = k.prediction.replace(/_/g, " ").toUpperCase();
 
             tr.innerHTML = `
                 <td>#${k.kernel_id}</td>
-                <td style="color: ${state.colorHex}; font-weight: 600;">${statusLabel}</td>
-                <td>${confidenceCell}</td>
+                <td class="st-${state.stateClass}">${formatStatus(k.prediction)}</td>
+                <td>${formatConfidence(k)}</td>
                 <td>${k.mold_ratio}%</td>
                 <td>${k.features.contrast}</td>
                 <td>${k.features.correlation}</td>
@@ -332,6 +388,11 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
             tbody.appendChild(tr);
         });
+
+        // Isi pager mobile dengan data yang sama, mulai dari biji pertama
+        pagerKernels = kernels;
+        pagerIndex = 0;
+        renderPager();
     }
 
     // Export CSV
@@ -389,6 +450,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnStartWebcam.disabled = true;
         btnStopWebcam.disabled = false;
         realtimeStatus.textContent = "Kamera aktif, memulai deteksi...";
+        realtimeStatus.classList.remove("is-live", "is-error");
 
         // setInterval memanggil captureAndDetectFrame() berulang-ulang tiap
         // REALTIME_INTERVAL_MS milidetik, selama kamera masih menyala.
@@ -411,12 +473,15 @@ document.addEventListener("DOMContentLoaded", () => {
         btnStartWebcam.disabled = false;
         btnStopWebcam.disabled = true;
         realtimeStatus.textContent = "Kamera belum aktif";
+        realtimeStatus.classList.remove("is-live", "is-error");
     }
 
     async function captureAndDetectFrame() {
         // Kalau frame sebelumnya masih diproses server, jangan kirim frame baru dulu --
         // supaya request tidak menumpuk kalau server ternyata lebih lambat dari interval.
         if (isProcessingFrame) return;
+        // Video belum siap (ukuran masih 0) -> tunggu interval berikutnya
+        if (!webcamVideo.videoWidth) return;
 
         // Samakan ukuran canvas dengan ukuran asli video, lalu "gambar ulang" frame
         // video saat ini ke dalam canvas -- ini teknik standar untuk "menjepret"
@@ -442,6 +507,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Kalau 1 frame gagal diproses, jangan hentikan seluruh sesi realtime --
                 // cukup catat di status, lanjut coba lagi di frame berikutnya.
                 realtimeStatus.textContent = "Frame ini gagal diproses, mencoba lagi...";
+                realtimeStatus.classList.add("is-error");
                 return;
             }
 
@@ -449,16 +515,21 @@ document.addEventListener("DOMContentLoaded", () => {
             renderRealtimeResult(data);
         } catch (err) {
             realtimeStatus.textContent = "Koneksi ke server bermasalah...";
+            realtimeStatus.classList.add("is-error");
         } finally {
             isProcessingFrame = false;
         }
     }
 
     function renderRealtimeResult(data) {
+        // Kalau kamera sudah dihentikan saat request masih jalan, abaikan hasilnya
+        if (!webcamStream) return;
         realtimeOutput.src = data.annotated;
 
         const s = data.summary;
         realtimeStatus.textContent = `Live -- ${s.total_biji} biji terdeteksi`;
+        realtimeStatus.classList.remove("is-error");
+        realtimeStatus.classList.add("is-live");
 
         let text = s.total_biji > 0
             ? `${s.sehat} sehat, ${s.terkontaminasi} terkontaminasi jamur (${s.persen_kontaminasi}%)`

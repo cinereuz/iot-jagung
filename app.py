@@ -44,7 +44,7 @@ async def get_samples():
     # Healthy samples
     sehat_dir = "data/raw/sehat"
     if os.path.exists(sehat_dir):
-        files = sorted(os.listdir(sehat_dir))[:6]
+        files = sorted(os.listdir(sehat_dir))[:8]
         for f in files:
             if f.lower().endswith(('.jpg', '.jpeg', '.png')):
                 samples.append({
@@ -57,7 +57,7 @@ async def get_samples():
     # Moldy samples
     kontam_dir = "data/raw/terkontaminasi"
     if os.path.exists(kontam_dir):
-        files = sorted(os.listdir(kontam_dir))[:6]
+        files = sorted(os.listdir(kontam_dir))[:8]
         for f in files:
             if f.lower().endswith(('.jpg', '.jpeg', '.png')):
                 samples.append({

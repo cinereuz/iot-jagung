@@ -5,23 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Deteksi Jamur Biji Jagung | GLCM, HSV & SVM</title>
     <meta name="description" content="Aplikasi deteksi jamur pada biji jagung berbasis ekstraksi fitur GLCM (tekstur), HSV (warna), segmentasi Otsu & K-Means, serta klasifikasi Support Vector Machine (SVM).">
+
+    <!-- Font: Poppins (teks) + JetBrains Mono (angka/fitur) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%220%22%20100%20100%22><text y=%22.9em%22 font-size=%2290%22>🌽</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌽</text></svg>">
 </head>
 <body>
+    <!-- Hiasan latar (gelombang), digambar lewat CSS -->
+    <div class="bg-decor" aria-hidden="true"></div>
+
     <div class="container">
-        <!-- Header -->
+
+        <!-- ============ HEADER ============ -->
         <header>
             <div class="header-inner">
                 <div class="title-group">
                     <h1>
-                        <span>🌽</span>
-                        Corn Kernel Mold & Blight Detection
+                        <!-- Logo jagung: kulit kiri, bulir kuning, kulit kanan -->
+                        <svg class="logo" viewBox="85 35 320 385" aria-hidden="true">
+                            <path fill="#33C15B" d="M172 102C185 110 200 125 195 145C180 190 175 260 183 335L190 412C130 400 92 340 92 285C92 220 140 150 172 102Z"/>
+                            <path fill="#FFC63D" d="M181 335C170 250 190 150 250 85C280 55 305 42 322 43C338 48 348 120 345 190C340 250 290 305 181 335Z"/>
+                            <path fill="#0FAA4F" d="M185 335C260 320 330 270 352 200C362 190 380 188 398 196C385 215 372 235 365 262C350 350 280 415 190 412Z"/>
+                        </svg>
+                        <span class="title-dark">Corn Kernel Mold</span>
+                        <span class="title-accent">&amp; Blight Detection</span>
                     </h1>
-                    <p>Klasifikasi Biji Jagung Sehat vs Terkontaminasi Jamur menggunakan Machine Learning & Computer Vision</p>
+                    <p>Klasifikasi Biji Jagung Sehat vs Terkontaminasi Jamur menggunakan Machine Learning &amp; Computer Vision</p>
                     <div class="pipeline-tags">
-                        <span class="tag highlight">Otsu Thresholding</span>
-                        <span class="tag highlight">K-Means Clustering</span>
+                        <span class="tag tag-fill">Otsu Thresholding</span>
+                        <span class="tag tag-fill">K-Means Clustering</span>
                         <span class="tag">GLCM (4 Fitur Tekstur)</span>
                         <span class="tag">HSV (3 Fitur Warna)</span>
                         <span class="tag">SVM Classifier (RBF)</span>
@@ -29,82 +45,70 @@
                 </div>
                 <div>
                     <a href="https://journal.cattleyadf.org/index.php/jatilima/article/view/2270" target="_blank" rel="noopener noreferrer" class="paper-badge" id="link-paper">
-                        <span>📄</span>
-                        <span>Paper Jatilima 2026</span>
+                        Paper Jatilima 2026
                     </a>
                 </div>
             </div>
         </header>
 
-        <!-- Main Controls (Upload & Sample Picker) -->
+        <!-- ============ INPUT: UNGGAH & SAMPEL ============ -->
         <section class="controls-grid" aria-label="Input Citra">
-            <!-- Dropzone / Upload -->
+
             <div class="card">
-                <div class="card-title">
-                    <span>📤</span>
-                    <span>Unggah Citra Biji Jagung</span>
-                </div>
+                <h2 class="card-title">Unggah Citra Biji Jagung</h2>
                 <div class="drop-zone" id="drop-zone">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    <!-- Awan solid teal dengan panah putih (sesuai desain) -->
+                    <svg class="icon-upload" viewBox="0 0 100 80" aria-hidden="true">
+                        <path fill="currentColor" d="M27 78C12 78 2 68 2 55C2 44 9 36 19 34C21 16 35 3 53 3C67 3 78 11 82 23C93 25 98 35 98 47C98 64 88 78 72 78Z"/>
+                        <path fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" d="M50 63V32M36 45L50 31L64 45"/>
                     </svg>
                     <p><strong>Klik untuk memilih file</strong> atau seret gambar ke sini</p>
-                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Mendukung format JPG, JPEG, PNG (Foto macro nampan biji / single kernel)</p>
+                    <p class="hint">Mendukung format JPG, JPEG, PNG (Foto macro nampan biji / single kernel)</p>
                     <input type="file" id="file-input" accept="image/*">
                 </div>
             </div>
 
-            <!-- Quick Samples -->
             <div class="card">
-                <div class="card-title">
-                    <span>🧪</span>
-                    <span>Uji Coba Cepat (Dataset Sampel)</span>
-                </div>
-                <div class="samples-container">
-                    <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                        Pilih citra sampel dari dataset untuk langsung melihat hasil deteksi dan analisis tahapan segmentasi:
-                    </p>
-                    <div class="sample-group-title">Sampel Citra Biji:</div>
-                    <div class="sample-buttons" id="sample-buttons">
-                        <!-- Populated by app.js -->
-                    </div>
-                </div>
+                <h2 class="card-title">
+                    <!-- Tabung uji solid navy, miring 45 derajat -->
+                    <svg class="icon icon-navy" viewBox="0 0 24 24" aria-hidden="true">
+                        <g transform="rotate(45 12 12)">
+                            <path fill="currentColor" d="M8 5V16A4 4 0 0 0 16 16V5Z"/>
+                            <rect fill="currentColor" x="6" y="2.6" width="12" height="2.8" rx="1.4"/>
+                            <rect fill="#fff" x="10.4" y="6.6" width="3.2" height="4.2"/>
+                        </g>
+                    </svg>
+                    Uji Coba Cepat (Dataset Sampel)
+                </h2>
+                <p class="card-desc">Pilih citra sampel dari dataset untuk langsung melihat hasil deteksi dan analisis tahapan segmentasi:</p>
+                <div class="sample-group-title">Sampel Citra Biji:</div>
+                <div class="sample-buttons" id="sample-buttons"></div>
             </div>
         </section>
 
-        <!-- BARU -- Realtime Webcam Detection -->
-        <section class="card" aria-label="Deteksi Realtime Webcam" style="margin-bottom: 2rem;">
-            <div class="card-title">
-                <span>🎥</span>
-                <span>Deteksi Realtime (Webcam)</span>
-            </div>
-            <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                Nyalakan kamera untuk deteksi biji jagung secara langsung. Server memproses satu frame kamera setiap beberapa detik sekali.
-            </p>
+        <!-- ============ DETEKSI REALTIME WEBCAM ============ -->
+        <section class="card section-gap" aria-label="Deteksi Realtime Webcam">
+            <h2 class="card-title">Deteksi RealTime (Webcam)</h2>
+            <p class="card-desc">Nyalakan kamera untuk deteksi biji jagung secara langsung. Server memproses satu frame kamera setiap 1 detik.</p>
 
             <div class="realtime-controls">
-                <button class="btn-sample" id="btn-start-webcam">▶️ Mulai Kamera</button>
-                <button class="btn-sample" id="btn-stop-webcam" disabled>⏹️ Hentikan Kamera</button>
-                <span id="realtime-status" class="realtime-status">Kamera belum aktif</span>
+                <button type="button" class="btn btn-outline" id="btn-start-webcam">Mulai Kamera</button>
+                <button type="button" class="btn btn-outline" id="btn-stop-webcam" disabled>Hentikan Kamera</button>
+                <span id="realtime-status" class="status-pill">Kamera belum aktif</span>
             </div>
 
             <div class="realtime-view">
-                <!-- video: feed kamera mentah, boleh dilihat user -->
                 <video id="webcam-video" autoplay playsinline muted></video>
-                <!-- canvas SENGAJA disembunyikan -- cuma dipakai sebagai tempat "menjepret"
-                     1 frame dari video, tidak pernah ditampilkan ke user -->
-                <canvas id="webcam-canvas" style="display: none;"></canvas>
-                <!-- img inilah yang ditampilkan ke user: hasil balikan server,
-                     sudah ada kotak-kotak deteksi (annotated) -->
-                <img id="realtime-output" alt="Hasil Deteksi Realtime">
+                <canvas id="webcam-canvas" hidden></canvas>
+                <img id="realtime-output" alt="Hasil Deteksi Realtime" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
             </div>
 
             <div class="realtime-summary" id="realtime-summary"></div>
         </section>
 
-        <!-- Results Section -->
+        <!-- ============ HASIL DETEKSI ============ -->
         <main id="results-section">
-            <!-- Diagnosis Banner -->
+
             <section class="status-banner" id="status-banner">
                 <div class="status-info">
                     <h2 id="status-title">Memuat Hasil...</h2>
@@ -112,7 +116,6 @@
                 </div>
             </section>
 
-            <!-- Metric Cards -->
             <section class="metrics-row" aria-label="Ringkasan Metrik">
                 <div class="metric-card total">
                     <div class="metric-value" id="metric-total">0</div>
@@ -126,9 +129,7 @@
                     <div class="metric-value" id="metric-moldy">0</div>
                     <div class="metric-label">Biji Berjamur</div>
                 </div>
-                <!-- BARU -- kartu ini disembunyikan default (style="display:none"), baru
-                     dimunculkan oleh app.js kalau summary.bukan_jagung > 0, supaya tidak
-                     mengganggu tampilan hasil deteksi normal yang tidak ada objek asing. -->
+                <!-- style="display: none;" HARUS tetap inline: app.js memunculkannya dengan style.display = "" -->
                 <div class="metric-card notcorn" id="metric-card-notcorn" style="display: none;">
                     <div class="metric-value" id="metric-notcorn">0</div>
                     <div class="metric-label">Bukan Jagung</div>
@@ -139,26 +140,17 @@
                 </div>
             </section>
 
-            <!-- Methodology Stages Visualizer -->
             <section class="card stages-card" aria-label="Visualisasi Tahapan Metodologi">
-                <div class="card-title">
-                    <span>🔬</span>
-                    <span>Visualisasi Langkah Pemrosesan Citra (Sesuai Paper)</span>
-                </div>
-                
+                <h2 class="card-title">
+                    Visualisasi Langkah Pemrosesan Citra
+                    <span class="hide-mobile">(Sesuai Paper)</span>
+                </h2>
+
                 <div class="stage-nav">
-                    <button class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">
-                        <span>🎯</span> Hasil Deteksi SVM
-                    </button>
-                    <button class="stage-btn" data-stage="original" id="btn-stage-original">
-                        <span>📷</span> Citra Asli
-                    </button>
-                    <button class="stage-btn" data-stage="gray-blur" id="btn-stage-gray-blur">
-                        <span>🌫️</span> Grayscale + Gaussian Blur
-                    </button>
-                    <button class="stage-btn" data-stage="otsu" id="btn-stage-otsu">
-                        <span>⚡</span> Segmentasi Otsu Mask
-                    </button>
+                    <button type="button" class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">Hasil Deteksi SVM</button>
+                    <button type="button" class="stage-btn" data-stage="original" id="btn-stage-original">Citra Asli</button>
+                    <button type="button" class="stage-btn" data-stage="gray-blur" id="btn-stage-gray-blur">Grayscale + Gaussian Blur</button>
+                    <button type="button" class="stage-btn" data-stage="otsu" id="btn-stage-otsu">Segmentasi Otsu Mask</button>
                 </div>
 
                 <div class="stage-display">
@@ -169,33 +161,37 @@
                 </div>
             </section>
 
-            <!-- Individual Kernel Details (K-Means Spot Segmentation) -->
-            <section class="card" aria-label="Detail Segmentasi Tiap Biji">
-                <div class="card-title">
-                    <span>🔍</span>
-                    <span>Analisis Per-Biji & Isolasi Jamur (K-Means Clustering)</span>
-                </div>
-                <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+            <section class="card card-tight" aria-label="Detail Segmentasi Tiap Biji">
+                <h2 class="card-title">Analisis Per-Biji &amp; Isolasi Jamur (K-Means Clustering)</h2>
+                <p class="card-desc">
                     Tiap biji jagung hasil segmentasi Otsu dianalisis area lesi jamurnya menggunakan K-Means Clustering dalam ruang warna HSV. Objek yang tidak dikenali sebagai biji jagung (ditandai badge abu-abu "Bukan Jagung") diabaikan dari penilaian mutu:
                 </p>
-                <div class="kernels-grid" id="kernels-grid">
-                    <!-- Populated by app.js -->
-                </div>
+                <div class="kernels-grid" id="kernels-grid"></div>
             </section>
 
-            <!-- Feature Matrix Table -->
             <section class="card" aria-label="Tabel Fitur GLCM dan HSV">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-                    <div class="card-title" style="margin-bottom: 0;">
-                        <span>📊</span>
-                        <span>Matriks Ekstraksi Fitur GLCM & HSV</span>
-                    </div>
-                    <button class="btn-sample" id="btn-export-csv" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border-color: rgba(59, 130, 246, 0.3);">
-                        <span>💾</span> Unduh CSV Fitur
+                <div class="card-head-row">
+                    <h2 class="card-title">
+                        <!-- Grafik batang: sumbu L + 4 batang, garis tebal ujung bulat -->
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3.5 3.5V17.5A3 3 0 0 0 6.5 20.5H21"/>
+                            <path d="M8.5 13.5V16.5M12.2 9.5V16.5M15.9 12V16.5M19.6 6.5V16.5"/>
+                        </svg>
+                        Matriks Ekstraksi Fitur GLCM &amp; HSV
+                    </h2>
+                    <button type="button" class="btn btn-download" id="btn-export-csv">
+                        <!-- Panah turun ke nampan -->
+                        <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M12 3V12.5M8.3 9.3L12 13L15.7 9.3"/>
+                            <path fill="currentColor" d="M3.5 17.2A2.2 2.2 0 0 1 5.7 15H8L10.6 17.2H13.4L16 15H18.3A2.2 2.2 0 0 1 20.5 17.2V19A2.2 2.2 0 0 1 18.3 21.2H5.7A2.2 2.2 0 0 1 3.5 19Z"/>
+                            <circle fill="#CFF7E8" cx="17" cy="18.2" r="0.9"/>
+                        </svg>
+                        Unduh CSV Fitur
                     </button>
                 </div>
-                
-                <div class="table-responsive">
+
+                <!-- Desktop: tabel penuh -->
+                <div class="table-responsive" id="feature-table-wrap">
                     <table id="feature-table">
                         <thead>
                             <tr>
@@ -212,24 +208,31 @@
                                 <th>Value</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <!-- Populated by app.js -->
-                        </tbody>
+                        <tbody></tbody>
                     </table>
+                </div>
+
+                <!-- Mobile: 1 biji per halaman + tombol Previous/Next (diisi app.js) -->
+                <div class="feature-pager" id="feature-pager">
+                    <div class="pager-card" id="pager-card"></div>
+                    <div class="pager-nav">
+                        <button type="button" class="pager-btn" id="pager-prev">&#8249; Previous</button>
+                        <span class="pager-info" id="pager-info">1 dari 1</span>
+                        <button type="button" class="pager-btn" id="pager-next">Next &#8250;</button>
+                    </div>
                 </div>
             </section>
         </main>
 
-        <!-- Loading Overlay -->
+        <!-- ============ LOADING OVERLAY ============ -->
         <div class="loading-overlay" id="loading-overlay">
             <div class="spinner"></div>
-            <p style="font-weight: 500; font-size: 1.05rem;">Memproses citra dengan Otsu, K-Means, GLCM, HSV & SVM...</p>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Mohon tunggu beberapa detik</p>
+            <p class="loading-title">Memproses citra dengan Otsu, K-Means, GLCM, HSV &amp; SVM...</p>
+            <p class="loading-sub">Mohon tunggu beberapa detik</p>
         </div>
 
-        <!-- Footer -->
         <footer>
-            <p>Sistem Deteksi Jamur pada Biji Jagung &copy; 2026 | Berdasarkan metodologi penelitian GLCM, HSV, Otsu & K-Means SVM</p>
+            <p>Sistem Deteksi Jamur pada Biji Jagung &copy; 2026 | Berdasarkan metodologi penelitian GLCM, HSV, Otsu &amp; K-Means SVM</p>
         </footer>
     </div>
 
