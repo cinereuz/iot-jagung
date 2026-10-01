@@ -235,6 +235,36 @@ def detect_frame(req: FrameRequest):
     return run_detection_lightweight(img)
 
 
+@app.post("/api/detect/frame/full")
+def detect_frame_full(req: FrameRequest):
+    """
+    Endpoint untuk analisis PENUH dari frame webcam terakhir.
+
+    Dipakai saat user menghentikan kamera setelah deteksi biji.
+    Bedanya dengan /api/detect/frame biasa:
+    - Mengembalikan SEMUA data lengkap: gambar tahapan preprocessing (gray, blur,
+      otsu), crop tiap biji, K-Means cluster, mold mask, fitur GLCM & HSV, dll.
+    - Response-nya lebih besar, tapi hanya dipanggil SEKALI saat kamera berhenti
+      (bukan tiap detik seperti /api/detect/frame).
+
+    Pakai 'def' biasa (bukan async def) supaya FastAPI menjalankannya di thread pool,
+    sama seperti /api/detect/frame -- alasannya sama: kerja berat CPU.
+    """
+    b64_clean = strip_base64_prefix(req.image)
+    try:
+        img_bytes = base64.b64decode(b64_clean)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Data gambar base64 tidak valid")
+
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        raise HTTPException(status_code=400, detail="Gagal decode frame gambar")
+
+    return run_detection(img)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
