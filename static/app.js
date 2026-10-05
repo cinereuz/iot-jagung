@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load available samples from server
   async function loadSamples() {
+    if (!sampleButtonsContainer) return;
     try {
       const res = await fetch('/api/samples');
       const data = await res.json();
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderSampleButtons(samples) {
+    if (!sampleButtonsContainer) return;
     sampleButtonsContainer.innerHTML = '';
 
     if (!samples || samples.length === 0) {

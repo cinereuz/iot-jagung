@@ -193,9 +193,16 @@ h1 {
    ===================================================== */
 .controls-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 1.5rem;
     margin-bottom: 1.75rem;
+}
+
+@media (min-width: 769px) {
+    /* Jika ada lebih dari 1 kartu (misal sampel diaktifkan kembali), otomatis 2 kolom */
+    .controls-grid:has(> .card:nth-child(2)) {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 .drop-zone {
@@ -203,11 +210,11 @@ h1 {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 250px;
+    min-height: 230px;
     margin-top: 0.6rem;
-    padding: 1.5rem;
+    padding: 2rem 1.5rem;
     border: 2px dashed #7FCBEA;
-    border-radius: 8px;
+    border-radius: 10px;
     text-align: center;
     font-size: 0.85rem;
     cursor: pointer;
@@ -562,7 +569,7 @@ footer { margin-top: 2.5rem; text-align: center; font-size: 0.8rem; color: var(-
     .logo { width: 1.7rem; height: 2.05rem; }
 
     .controls-grid { grid-template-columns: 1fr; gap: 1rem; margin-bottom: 1rem; }
-    .drop-zone { min-height: 210px; }
+    .drop-zone { min-height: 200px; padding: 1.5rem 1rem; }
     .section-gap { margin-bottom: 1rem; }
     .realtime-view { grid-template-columns: 1fr; }
 
@@ -588,6 +595,10 @@ footer { margin-top: 2.5rem; text-align: center; font-size: 0.8rem; color: var(-
    Di lebar ~390px, 2 kolom membuat badge & fitur terpotong.
    ===================================================== */
 @media (max-width: 520px) {
+    .icon-upload { width: 4.6rem; height: 3.7rem; margin-bottom: 0.75rem; }
+    .drop-zone { min-height: 180px; padding: 1.2rem 0.75rem; }
+    .drop-zone p { font-size: 0.8rem; }
+
     .kernels-grid { grid-template-columns: 1fr; }
     .kernel-title { font-size: 1.25rem; }
     .kernel-features-mini { font-size: 0.68rem; }
