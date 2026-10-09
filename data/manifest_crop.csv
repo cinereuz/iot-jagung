@@ -1,7 +1,4 @@
 filename,source_file,label,area_piksel,width,height
-nomal_427_biji1.jpg,nomal_427,sehat,249.0,27,28
-nomal_427_biji2.jpg,nomal_427,sehat,128.0,22,23
-nomal_427_biji3.jpg,nomal_427,sehat,186.5,22,29
 normal_001_biji1.jpg,normal_001,sehat,583.5,39,30
 normal_002_biji1.jpg,normal_002,sehat,586.5,41,30
 normal_002_biji2.jpg,normal_002,sehat,645.0,45,29
@@ -1176,6 +1173,9 @@ normal_421_biji2.jpg,normal_421,sehat,104.0,20,17
 normal_421_biji3.jpg,normal_421,sehat,113.0,22,18
 normal_422_biji1.jpg,normal_422,sehat,123.5,19,21
 normal_422_biji2.jpg,normal_422,sehat,151.5,23,19
+normal_427_biji1.jpg,normal_427,sehat,249.0,27,28
+normal_427_biji2.jpg,normal_427,sehat,128.0,22,23
+normal_427_biji3.jpg,normal_427,sehat,186.5,22,29
 normal_428_biji1.jpg,normal_428,sehat,162.5,22,22
 normal_428_biji2.jpg,normal_428,sehat,450.5,33,40
 normal_428_biji3.jpg,normal_428,sehat,231.5,23,26
