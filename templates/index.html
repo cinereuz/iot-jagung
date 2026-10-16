@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Deteksi Jamur Biji Jagung | GLCM, HSV & SVM</title>
-    <meta name="description" content="Aplikasi deteksi jamur pada biji jagung berbasis ekstraksi fitur GLCM (tekstur), HSV (warna), segmentasi Otsu & K-Means, serta klasifikasi Support Vector Machine (SVM).">
+    <title>Corn Kernel Mold Detection System | GLCM, HSV & SVM</title>
+    <meta name="description" content="Mold detection application for corn kernels based on GLCM (texture) and HSV (color) feature extraction, Otsu & K-Means segmentation, and Support Vector Machine (SVM) classification.">
 
     <!-- Font: Poppins (teks) + JetBrains Mono (angka/fitur) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,12 +34,12 @@
                         <span class="title-dark">Corn Kernel Mold</span>
                         <span class="title-accent">&amp; Blight Detection</span>
                     </h1>
-                    <p>Klasifikasi Biji Jagung Sehat vs Terkontaminasi Jamur menggunakan Machine Learning &amp; Computer Vision</p>
+                    <p>Classification of Healthy vs Mold-Contaminated Corn Kernels using Machine Learning &amp; Computer Vision</p>
                     <div class="pipeline-tags">
                         <span class="tag tag-fill">Otsu Thresholding</span>
                         <span class="tag tag-fill">K-Means Clustering</span>
-                        <span class="tag">GLCM (4 Fitur Tekstur)</span>
-                        <span class="tag">HSV (3 Fitur Warna)</span>
+                        <span class="tag">GLCM (4 Texture Features)</span>
+                        <span class="tag">HSV (3 Color Features)</span>
                         <span class="tag">SVM Classifier (RBF)</span>
                     </div>
                 </div>
@@ -52,18 +52,18 @@
         </header>
 
         <!-- ============ INPUT: UNGGAH & SAMPEL ============ -->
-        <section class="controls-grid" aria-label="Input Citra">
+        <section class="controls-grid" aria-label="Image Input">
 
             <div class="card">
-                <h2 class="card-title">Unggah Citra Biji Jagung</h2>
+                <h2 class="card-title">Upload Corn Kernel Image</h2>
                 <div class="drop-zone" id="drop-zone">
                     <!-- Awan solid teal dengan panah putih (sesuai desain) -->
                     <svg class="icon-upload" viewBox="0 0 100 80" aria-hidden="true">
                         <path fill="currentColor" d="M27 78C12 78 2 68 2 55C2 44 9 36 19 34C21 16 35 3 53 3C67 3 78 11 82 23C93 25 98 35 98 47C98 64 88 78 72 78Z"/>
                         <path fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" d="M50 63V32M36 45L50 31L64 45"/>
                     </svg>
-                    <p><strong>Klik untuk memilih file</strong> atau seret gambar ke sini</p>
-                    <p class="hint">Mendukung format JPG, JPEG, PNG (Foto macro nampan biji / single kernel)</p>
+                    <p><strong>Click to choose a file</strong> or drag an image here</p>
+                    <p class="hint">Supports JPG, JPEG, and PNG formats (macro photo of a kernel tray / single kernel)</p>
                     <input type="file" id="file-input" accept="image/*">
                 </div>
             </div>
@@ -78,30 +78,30 @@
                             <rect fill="#fff" x="10.4" y="6.6" width="3.2" height="4.2"/>
                         </g>
                     </svg>
-                    Uji Coba Cepat (Dataset Sampel)
+                    Quick Test (Sample Dataset)
                 </h2>
-                <p class="card-desc">Pilih citra sampel dari dataset untuk langsung melihat hasil deteksi dan analisis tahapan segmentasi:</p>
-                <div class="sample-group-title">Sampel Citra Biji:</div>
+                <p class="card-desc">Choose a sample image from the dataset to instantly see the detection result and the segmentation stage analysis:</p>
+                <div class="sample-group-title">Kernel Sample Images:</div>
                 <div class="sample-buttons" id="sample-buttons"></div>
             </div>
             -->
         </section>
 
         <!-- ============ DETEKSI REALTIME WEBCAM ============ -->
-        <section class="card section-gap" aria-label="Deteksi Realtime Webcam">
-            <h2 class="card-title">Deteksi RealTime (Webcam)</h2>
-            <p class="card-desc">Nyalakan kamera untuk deteksi biji jagung secara langsung. Server memproses satu frame kamera setiap 1 detik.</p>
+        <section class="card section-gap" aria-label="Realtime Webcam Detection">
+            <h2 class="card-title">Realtime Detection (Webcam)</h2>
+            <p class="card-desc">Turn on the camera to detect corn kernels live. The server processes one camera frame every second.</p>
 
             <div class="realtime-controls">
-                <button type="button" class="btn btn-outline" id="btn-start-webcam">Mulai Kamera</button>
-                <button type="button" class="btn btn-outline" id="btn-stop-webcam" disabled>Hentikan Kamera</button>
-                <span id="realtime-status" class="status-pill">Kamera belum aktif</span>
+                <button type="button" class="btn btn-outline" id="btn-start-webcam">Start Camera</button>
+                <button type="button" class="btn btn-outline" id="btn-stop-webcam" disabled>Stop Camera</button>
+                <span id="realtime-status" class="status-pill">Camera is not active</span>
             </div>
 
             <div class="realtime-view">
                 <video id="webcam-video" autoplay playsinline muted></video>
                 <canvas id="webcam-canvas" hidden></canvas>
-                <img id="realtime-output" alt="Hasil Deteksi Realtime" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                <img id="realtime-output" alt="Realtime Detection Result" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
             </div>
 
             <div class="realtime-summary" id="realtime-summary"></div>
@@ -112,65 +112,65 @@
 
             <section class="status-banner" id="status-banner">
                 <div class="status-info">
-                    <h2 id="status-title">Memuat Hasil...</h2>
-                    <p id="status-desc">Ringkasan hasil evaluasi dan persentase kontaminasi jamur.</p>
+                    <h2 id="status-title">Loading Results...</h2>
+                    <p id="status-desc">Summary of the evaluation results and mold contamination percentage.</p>
                 </div>
             </section>
 
-            <section class="metrics-row" aria-label="Ringkasan Metrik">
+            <section class="metrics-row" aria-label="Metrics Summary">
                 <div class="metric-card total">
                     <div class="metric-value" id="metric-total">0</div>
-                    <div class="metric-label">Total Biji</div>
+                    <div class="metric-label">Total Kernels</div>
                 </div>
                 <div class="metric-card healthy">
                     <div class="metric-value" id="metric-healthy">0</div>
-                    <div class="metric-label">Biji Sehat</div>
+                    <div class="metric-label">Healthy Kernels</div>
                 </div>
                 <div class="metric-card moldy">
                     <div class="metric-value" id="metric-moldy">0</div>
-                    <div class="metric-label">Biji Berjamur</div>
+                    <div class="metric-label">Moldy Kernels</div>
                 </div>
                 <!-- style="display: none;" HARUS tetap inline: app.js memunculkannya dengan style.display = "" -->
                 <div class="metric-card notcorn" id="metric-card-notcorn" style="display: none;">
                     <div class="metric-value" id="metric-notcorn">0</div>
-                    <div class="metric-label">Bukan Jagung</div>
+                    <div class="metric-label">Not Corn</div>
                 </div>
                 <div class="metric-card rate">
                     <div class="metric-value" id="metric-rate">0%</div>
-                    <div class="metric-label">Tingkat Kontam</div>
+                    <div class="metric-label">Contamination Rate</div>
                 </div>
             </section>
 
-            <section class="card stages-card" aria-label="Visualisasi Tahapan Metodologi">
+            <section class="card stages-card" aria-label="Methodology Stage Visualization">
                 <h2 class="card-title">
-                    Visualisasi Langkah Pemrosesan Citra
+                    Image Processing Steps Visualization
                     <!-- <span class="hide-mobile">(Sesuai Paper)</span> -->
                 </h2>
 
                 <div class="stage-nav">
-                    <button type="button" class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">Hasil Deteksi SVM</button>
-                    <button type="button" class="stage-btn" data-stage="original" id="btn-stage-original">Citra Asli</button>
+                    <button type="button" class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">SVM Detection Result</button>
+                    <button type="button" class="stage-btn" data-stage="original" id="btn-stage-original">Original Image</button>
                     <button type="button" class="stage-btn" data-stage="gray-blur" id="btn-stage-gray-blur">Grayscale + Gaussian Blur</button>
-                    <button type="button" class="stage-btn" data-stage="otsu" id="btn-stage-otsu">Segmentasi Otsu Mask</button>
+                    <button type="button" class="stage-btn" data-stage="otsu" id="btn-stage-otsu">Otsu Segmentation Mask</button>
                 </div>
 
                 <div class="stage-display">
                     <div class="stage-img-wrapper">
-                        <img id="stage-image" src="" alt="Visualisasi Tahapan Pemrosesan">
+                        <img id="stage-image" src="" alt="Processing Stage Visualization">
                     </div>
                     <p class="stage-description" id="stage-desc"></p>
                 </div>
             </section>
 
-            <section class="card card-tight" aria-label="Detail Segmentasi Tiap Biji">
-                <h2 class="card-title">Analisis Per-Biji &amp; Isolasi Jamur (K-Means Clustering)</h2>
+            <section class="card card-tight" aria-label="Per-Kernel Segmentation Details">
+                <h2 class="card-title">Per-Kernel Analysis &amp; Mold Isolation (K-Means Clustering)</h2>
                 <p class="card-desc">
-                    Tiap biji jagung hasil segmentasi Otsu dianalisis area lesi jamurnya menggunakan K-Means Clustering dalam ruang warna HSV. Objek yang tidak dikenali sebagai biji jagung (ditandai badge abu-abu "Bukan Jagung") diabaikan dari penilaian mutu:
+                    Each corn kernel segmented by Otsu is analyzed for its mold lesion area using K-Means Clustering in the HSV color space. Objects not recognized as corn kernels (marked with the gray "Not Corn" badge) are excluded from the quality assessment:
                 </p>
                 <div class="kernels-grid" id="kernels-grid"></div>
             </section>
 
-            <section class="card" aria-label="Tabel Fitur GLCM dan HSV">
+            <section class="card" aria-label="GLCM and HSV Feature Table">
                 <div class="card-head-row">
                     <h2 class="card-title">
                         <!-- Grafik batang: sumbu L + 4 batang, garis tebal ujung bulat -->
@@ -178,7 +178,7 @@
                             <path d="M3.5 3.5V17.5A3 3 0 0 0 6.5 20.5H21"/>
                             <path d="M8.5 13.5V16.5M12.2 9.5V16.5M15.9 12V16.5M19.6 6.5V16.5"/>
                         </svg>
-                        Matriks Ekstraksi Fitur GLCM &amp; HSV
+                        GLCM &amp; HSV Feature Extraction Matrix
                     </h2>
                     <button type="button" class="btn btn-download" id="btn-export-csv">
                         <!-- Panah turun ke nampan -->
@@ -187,7 +187,7 @@
                             <path fill="currentColor" d="M3.5 17.2A2.2 2.2 0 0 1 5.7 15H8L10.6 17.2H13.4L16 15H18.3A2.2 2.2 0 0 1 20.5 17.2V19A2.2 2.2 0 0 1 18.3 21.2H5.7A2.2 2.2 0 0 1 3.5 19Z"/>
                             <circle fill="#CFF7E8" cx="17" cy="18.2" r="0.9"/>
                         </svg>
-                        Unduh CSV Fitur
+                        Download Features CSV
                     </button>
                 </div>
 
@@ -197,9 +197,9 @@
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Status SVM</th>
+                                <th>SVM Status</th>
                                 <th>Conf</th>
-                                <th>% Jamur</th>
+                                <th>% Mold</th>
                                 <th>Contrast</th>
                                 <th>Correlation</th>
                                 <th>Energy</th>
@@ -218,7 +218,7 @@
                     <div class="pager-card" id="pager-card"></div>
                     <div class="pager-nav">
                         <button type="button" class="pager-btn" id="pager-prev">&#8249; Previous</button>
-                        <span class="pager-info" id="pager-info">1 dari 1</span>
+                        <span class="pager-info" id="pager-info">1 of 1</span>
                         <button type="button" class="pager-btn" id="pager-next">Next &#8250;</button>
                     </div>
                 </div>
@@ -228,15 +228,15 @@
         <!-- ============ LOADING OVERLAY ============ -->
         <div class="loading-overlay" id="loading-overlay">
             <div class="spinner"></div>
-            <p class="loading-title">Memproses citra dengan Otsu, K-Means, GLCM, HSV &amp; SVM...</p>
-            <p class="loading-sub">Mohon tunggu beberapa detik</p>
+            <p class="loading-title">Processing image with Otsu, K-Means, GLCM, HSV &amp; SVM...</p>
+            <p class="loading-sub">Please wait a few seconds</p>
         </div>
 
         <footer>
-            <p>Sistem Deteksi Jamur pada Biji Jagung &copy; 2026 | Berdasarkan metodologi penelitian GLCM, HSV, Otsu &amp; K-Means SVM</p>
+            <p>Corn Kernel Mold Detection System &copy; 2026 | Based on the GLCM, HSV, Otsu &amp; K-Means SVM research methodology</p>
         </footer>
     </div>
 
-    <script src="/static/app.js?v=3"></script>
+    <script src="/static/app.js?v=4"></script>
 </body>
 </html>

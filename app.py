@@ -49,7 +49,7 @@ async def get_samples():
             if f.lower().endswith(('.jpg', '.jpeg', '.png')):
                 samples.append({
                     "id": f"sehat_{f}",
-                    "name": f"Biji Sehat ({f})",
+                    "name": f"Healthy Kernel ({f})",
                     "category": "sehat",
                     "path": os.path.join(sehat_dir, f)
                 })
@@ -62,7 +62,7 @@ async def get_samples():
             if f.lower().endswith(('.jpg', '.jpeg', '.png')):
                 samples.append({
                     "id": f"kontam_{f}",
-                    "name": f"Biji Berjamur ({f})",
+                    "name": f"Moldy Kernel ({f})",
                     "category": "terkontaminasi",
                     "path": os.path.join(kontam_dir, f)
                 })
@@ -75,11 +75,11 @@ class SampleRequest(BaseModel):
 @app.post("/api/detect/sample")
 async def detect_sample(req: SampleRequest):
     if not os.path.exists(req.sample_path):
-        raise HTTPException(status_code=404, detail="File sampel tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Sample file not found")
 
     img = cv2.imread(req.sample_path)
     if img is None:
-        raise HTTPException(status_code=400, detail="Gagal membaca citra sampel")
+        raise HTTPException(status_code=400, detail="Failed to read the sample image")
 
     return run_detection(img)
 
@@ -90,7 +90,7 @@ async def detect_upload(file: UploadFile = File(...)):
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     if img is None:
-        raise HTTPException(status_code=400, detail="Format file citra tidak valid atau rusak")
+        raise HTTPException(status_code=400, detail="Invalid or corrupted image file format")
 
     return run_detection(img)
 
@@ -99,7 +99,7 @@ def run_detection(img):
     try:
         results = pipeline.process_image(img)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error pemrosesan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
     # Format images to base64
     images_b64 = {
@@ -178,7 +178,7 @@ def run_detection_lightweight(img):
     try:
         results = pipeline.process_image(img)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error pemrosesan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
     # Ambil hanya info penting tiap biji, TANPA gambar-gambar beratnya
     kernels_light = []
@@ -224,13 +224,13 @@ def detect_frame(req: FrameRequest):
     try:
         img_bytes = base64.b64decode(b64_clean)
     except Exception:
-        raise HTTPException(status_code=400, detail="Data gambar base64 tidak valid")
+        raise HTTPException(status_code=400, detail="Invalid base64 image data")
 
     nparr = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     if img is None:
-        raise HTTPException(status_code=400, detail="Gagal decode frame gambar")
+        raise HTTPException(status_code=400, detail="Failed to decode the image frame")
 
     return run_detection_lightweight(img)
 
@@ -254,13 +254,13 @@ def detect_frame_full(req: FrameRequest):
     try:
         img_bytes = base64.b64decode(b64_clean)
     except Exception:
-        raise HTTPException(status_code=400, detail="Data gambar base64 tidak valid")
+        raise HTTPException(status_code=400, detail="Invalid base64 image data")
 
     nparr = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     if img is None:
-        raise HTTPException(status_code=400, detail="Gagal decode frame gambar")
+        raise HTTPException(status_code=400, detail="Failed to decode the image frame")
 
     return run_detection(img)
 

@@ -63,7 +63,7 @@ class CornDiseasePipeline:
         - Resizing to standardized target size
         """
         if img is None:
-            raise ValueError("Citra input tidak valid (None)")
+            raise ValueError("Invalid input image (None)")
         
         h, w = img.shape[:2]
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -322,7 +322,7 @@ class CornDiseasePipeline:
               pakai SVM, persis seperti kode sebelumnya.
         """
         if self.model is None or self.scaler is None:
-            raise RuntimeError("Model SVM atau Scaler belum dimuat.")
+            raise RuntimeError("SVM model or Scaler has not been loaded.")
 
         feat_values = np.array([[
             features_dict["contrast"],
@@ -423,16 +423,16 @@ class CornDiseasePipeline:
             if label == "sehat":
                 sehat_count += 1
                 box_color = (46, 204, 113)  # Green BGR
-                label_text = f"Sehat ({pred_res['confidence']}%)"
+                label_text = f"Healthy ({pred_res['confidence']}%)"
             elif label == "terkontaminasi":
                 kontam_count += 1
                 box_color = (60, 76, 231)  # Red BGR
-                label_text = f"Jamur ({pred_res['confidence']}%)"
+                label_text = f"Mold ({pred_res['confidence']}%)"
             else:
                 # label == "bukan_jagung"
                 bukan_jagung_count += 1
                 box_color = (150, 150, 150)  # Abu-abu BGR -- menandakan objek diabaikan
-                label_text = "Bukan Jagung"
+                label_text = "Not Corn"
 
             x, y, w, h = k["bbox"]
             cv2.rectangle(annotated_img, (x, y), (x + w, y + h), box_color, 2)
@@ -474,16 +474,16 @@ class CornDiseasePipeline:
         contam_pct = round((kontam_count / total_jagung) * 100, 1) if total_jagung > 0 else 0.0
 
         if total_jagung == 0:
-            quality_status = "Tidak ada biji jagung terdeteksi pada citra ini"
+            quality_status = "No corn kernels detected in this image"
             status_badge = "secondary"
         elif contam_pct == 0.0:
-            quality_status = "Kualitas Sangat Baik (Aman Konsumsi & Benih)"
+            quality_status = "Excellent Quality (Safe for Consumption & Seed)"
             status_badge = "success"
         elif contam_pct <= 15.0:
-            quality_status = "Kualitas Standar (Perlu Sortir Ringan)"
+            quality_status = "Standard Quality (Light Sorting Required)"
             status_badge = "warning"
         else:
-            quality_status = "Kualitas Buruk (Terkontaminasi Jamur / Tidak Layak)"
+            quality_status = "Poor Quality (Mold Contaminated / Unfit)"
             status_badge = "danger"
 
         return {
@@ -510,5 +510,5 @@ class CornDiseasePipeline:
         """Helper to process from file path."""
         img = cv2.imread(file_path)
         if img is None:
-            raise FileNotFoundError(f"Tidak dapat membaca file: {file_path}")
+            raise FileNotFoundError(f"Cannot read file: {file_path}")
         return self.process_image(img)

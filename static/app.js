@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sampleButtonsContainer.innerHTML = '';
 
     if (!samples || samples.length === 0) {
-      sampleButtonsContainer.innerHTML = "<span style='color: var(--text-muted); font-size: 0.85rem;'>Tidak ada sampel lokal ditemukan.</span>";
+      sampleButtonsContainer.innerHTML = "<span style='color: var(--text-muted); font-size: 0.85rem;'>No local samples found.</span>";
       return;
     }
 
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.detail || 'Terjadi kesalahan saat memproses citra.');
+        throw new Error(errData.detail || 'An error occurred while processing the image.');
       }
       const data = await res.json();
       displayResults(data);
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.detail || 'Gagal memproses sampel.');
+        throw new Error(errData.detail || 'Failed to process the sample.');
       }
       const data = await res.json();
       displayResults(data);
@@ -128,12 +128,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // Abu-abu -- menandakan objek ini DIABAIKAN dari penilaian mutu,
       // bukan salah satu dari sehat/terkontaminasi. Warnanya didefinisikan
       // di style.css lewat variabel --notcorn-gray.
-      return { stateClass: 'notcorn', label: 'Bukan Jagung', colorHex: 'var(--notcorn-gray)' };
+      return { stateClass: 'notcorn', label: 'Not Corn', colorHex: 'var(--notcorn-gray)' };
     }
     if (k.is_moldy) {
-      return { stateClass: 'moldy', label: 'Terkontaminasi Jamur', colorHex: 'var(--mold-red)' };
+      return { stateClass: 'moldy', label: 'Mold Contaminated', colorHex: 'var(--mold-red)' };
     }
-    return { stateClass: 'healthy', label: 'Sehat', colorHex: 'var(--healthy-green)' };
+    return { stateClass: 'healthy', label: 'Healthy', colorHex: 'var(--healthy-green)' };
   }
 
   // Render results
@@ -165,10 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // pipeline (kontaminasi dihitung dari objek yang memang jagung saja).
     let descText =
       totalJagung > 0
-        ? `Dari ${totalJagung} biji jagung yang terdeteksi, ${summary.sehat} biji sehat dan ${summary.terkontaminasi} biji terinfeksi jamur (${summary.persen_kontaminasi}% kontaminasi).`
-        : `Tidak ada biji jagung yang terdeteksi pada citra ini.`;
+        ? `Corn kernels detected: ${totalJagung} (${summary.sehat} healthy, ${summary.terkontaminasi} mold-infected). Contamination rate: ${summary.persen_kontaminasi}%.`
+        : `No corn kernels were detected in this image.`;
     if (bukanJagungCount > 0) {
-      descText += ` ${bukanJagungCount} objek lain terdeteksi bukan biji jagung dan diabaikan dari penilaian mutu.`;
+      descText += ` Other objects not recognized as corn kernels: ${bukanJagungCount} (excluded from the quality assessment).`;
     }
     document.getElementById('status-desc').textContent = descText;
 
@@ -210,19 +210,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const stageData = {
       annotated: {
         img: images.annotated,
-        desc: 'Hasil akhir klasifikasi Support Vector Machine (SVM): Bounding box hijau menunjukkan biji sehat, merah menunjukkan biji terkontaminasi jamur, dan abu-abu menunjukkan objek yang terdeteksi BUKAN biji jagung (diabaikan dari penilaian mutu).',
+        desc: 'Final classification result of the Support Vector Machine (SVM): green bounding boxes indicate healthy kernels, red indicates mold-contaminated kernels, and gray indicates objects detected as NOT corn kernels (excluded from the quality assessment).',
       },
       original: {
         img: images.original,
-        desc: 'Citra asli biji jagung resolusi tinggi sebelum pra-pemrosesan.',
+        desc: 'Original high-resolution corn kernel image before preprocessing.',
       },
       'gray-blur': {
         img: images.blur,
-        desc: 'Tahap 1 Preprocessing: Konversi citra ke Grayscale dan reduksi derau (noise reduction) menggunakan Gaussian Blur.',
+        desc: 'Preprocessing Step 1: Conversion of the image to grayscale and noise reduction using Gaussian Blur.',
       },
       otsu: {
         img: images.otsu_mask,
-        desc: 'Tahap 2A Segmentasi: Pemisahan objek biji dari latar belakang (background) menggunakan Otsu Thresholding dan filter morfologi elips.',
+        desc: 'Segmentation Step 2A: Separation of kernel objects from the background using Otsu Thresholding and an elliptical morphological filter.',
       },
     };
 
@@ -264,24 +264,24 @@ document.addEventListener('DOMContentLoaded', () => {
       // BARU -- untuk bukan_jagung, "Area Jamur X%" tidak relevan (itu cuma
       // hasil clustering warna, bukan indikasi jamur beneran) -- diganti
       // dengan info jarak outlier supaya tetap informatif & jujur secara metodologis.
-      const thirdThumbLabel = state.stateClass === 'notcorn' ? `Bukan Jagung (jarak ${k.outlier_distance ?? '-'} vs batas ${k.outlier_threshold ?? '-'})` : `Area Jamur (${k.mold_ratio}%)`;
+      const thirdThumbLabel = state.stateClass === 'notcorn' ? `Not Corn (distance ${k.outlier_distance ?? '-'} vs threshold ${k.outlier_threshold ?? '-'})` : `Mold Area (${k.mold_ratio}%)`;
 
       card.innerHTML = `
                 <div class="kernel-header">
-                    <span class="kernel-title">Biji #${k.kernel_id}</span>
+                    <span class="kernel-title">Kernel #${k.kernel_id}</span>
                     <span class="badge ${state.stateClass}">${state.label}</span>
                 </div>
                 <div class="kernel-visuals">
                     <div class="thumb-box">
-                        <img src="${k.crop_b64}" alt="Crop Asli">
-                        <span>Crop Biji</span>
+                        <img src="${k.crop_b64}" alt="Original Crop">
+                        <span>Kernel Crop</span>
                     </div>
                     <div class="thumb-box">
                         <img src="${k.kmeans_b64 || k.crop_b64}" alt="K-Means Cluster">
-                        <span>K-Means (Warna)</span>
+                        <span>K-Means (Color)</span>
                     </div>
                     <div class="thumb-box">
-                        <img src="${k.mold_mask_b64 || k.crop_b64}" alt="Mask Jamur">
+                        <img src="${k.mold_mask_b64 || k.crop_b64}" alt="Mold Mask">
                         <span>${thirdThumbLabel}</span>
                     </div>
                 </div>
@@ -293,18 +293,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div>Hue: <span class="feature-val">${k.features.hue}</span></div>
                     <div>Sat: <span class="feature-val">${k.features.saturation}</span></div>
                 </div>
-                ${confidenceText === null ? `<div style="font-size:0.78rem;color:${state.colorHex};margin-top:0.5rem;">Confidence tidak berlaku -- objek ditolak sebelum tahap klasifikasi SVM (lihat detail jarak di atas)</div>` : ''}
+                ${confidenceText === null ? `<div style="font-size:0.78rem;color:${state.colorHex};margin-top:0.5rem;">Confidence not applicable -- object rejected before the SVM classification stage (see the distance details above)</div>` : ''}
             `;
       container.appendChild(card);
     });
   }
 
-  // "bukan_jagung" -> "Bukan Jagung", "sehat" -> "Sehat" (Title Case sesuai desain)
+  // Peta nilai "prediction" dari backend -> label Inggris untuk tampilan.
+  // KEY (sehat / terkontaminasi / bukan_jagung) JANGAN diubah: itu nilai yang dikirim
+  // pipeline.py dan dipakai logika lain. Yang diterjemahkan hanya teks yang tampil.
+  const PREDICTION_LABELS = {
+    sehat: 'Healthy',
+    terkontaminasi: 'Contaminated',
+    bukan_jagung: 'Not Corn',
+  };
   function formatStatus(prediction) {
-    return String(prediction)
-      .split('_')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
+    return PREDICTION_LABELS[prediction] || String(prediction);
   }
 
   // confidence null ditampilkan "-", bukan "null%"
@@ -323,8 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderPager() {
     const total = pagerKernels.length;
     if (total === 0) {
-      pagerCard.innerHTML = `<div class="pager-empty">Belum ada biji terdeteksi.</div>`;
-      pagerInfo.textContent = '0 dari 0';
+      pagerCard.innerHTML = `<div class="pager-empty">No kernels detected yet.</div>`;
+      pagerInfo.textContent = '0 of 0';
       pagerPrev.disabled = true;
       pagerNext.disabled = true;
       return;
@@ -333,9 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const k = pagerKernels[pagerIndex];
     const state = getKernelState(k);
     const rows = [
-      ['Status SVM', `<span class="st-${state.stateClass}">${formatStatus(k.prediction)}</span>`],
+      ['SVM Status', `<span class="st-${state.stateClass}">${formatStatus(k.prediction)}</span>`],
       ['Conf', formatConfidence(k)],
-      ['% Jamur', `${k.mold_ratio}%`],
+      ['% Mold', `${k.mold_ratio}%`],
       ['Contrast', k.features.contrast],
       ['Correlation', k.features.correlation],
       ['Energy', k.features.energy],
@@ -347,11 +351,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     pagerCard.innerHTML =
       `<div class="pager-head">
-                <img class="pager-thumb" src="${k.crop_b64}" alt="Crop biji #${k.kernel_id}">
+                <img class="pager-thumb" src="${k.crop_b64}" alt="Kernel crop #${k.kernel_id}">
                 <span class="pager-id">#${k.kernel_id}</span>
             </div>` + rows.map((r) => `<div class="pager-row"><span class="pager-label">${r[0]}</span><span class="pager-value">${r[1]}</span></div>`).join('');
 
-    pagerInfo.textContent = `${pagerIndex + 1} dari ${total}`;
+    pagerInfo.textContent = `${pagerIndex + 1} of ${total}`;
     pagerPrev.disabled = pagerIndex === 0;
     pagerNext.disabled = pagerIndex === total - 1;
   }
@@ -405,11 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
     exportBtn.addEventListener('click', () => {
       if (!currentResults || !currentResults.kernels) return;
 
-      let csv = 'ID,Status,Confidence(%),AreaJamur(%),Contrast,Correlation,Energy,Homogeneity,Hue,Saturation,Value\n';
+      let csv = 'ID,Status,Confidence(%),MoldArea(%),Contrast,Correlation,Energy,Homogeneity,Hue,Saturation,Value\n';
       currentResults.kernels.forEach((k) => {
         // BARU -- confidence null ditulis string kosong di CSV, bukan literal "null".
         const confVal = k.confidence !== null && k.confidence !== undefined ? k.confidence : '';
-        csv += `${k.kernel_id},${k.prediction},${confVal},${k.mold_ratio},${k.features.contrast},${k.features.correlation},${k.features.energy},${k.features.homogeneity},${k.features.hue},${k.features.saturation},${k.features.value}\n`;
+        csv += `${k.kernel_id},${formatStatus(k.prediction)},${confVal},${k.mold_ratio},${k.features.contrast},${k.features.correlation},${k.features.energy},${k.features.homogeneity},${k.features.hue},${k.features.saturation},${k.features.value}\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -444,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function startWebcam() {
     // Cek dulu apakah browser menyediakan akses kamera
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      alert('Kamera hanya bisa dipakai lewat HTTPS atau localhost. Buka aplikasi lewat alamat https:// atau gunakan salah satu solusi di panduan.');
+      alert('The camera can only be used over HTTPS or localhost. Open the app via an https:// address or use one of the solutions in the guide.');
       return;
     }
 
@@ -454,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         video: { facingMode: 'environment' },
       });
     } catch (err) {
-      alert('Tidak bisa mengakses kamera: ' + err.message);
+      alert('Unable to access the camera: ' + err.message);
       return;
     }
 
@@ -462,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnStartWebcam.disabled = true;
     btnStopWebcam.disabled = false;
-    realtimeStatus.textContent = 'Kamera aktif, memulai deteksi...';
+    realtimeStatus.textContent = 'Camera active, starting detection...';
     realtimeStatus.classList.remove('is-live', 'is-error');
     realtimeHasDetection = false;
     lastRealtimeFrame = null;
@@ -513,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnStartWebcam.disabled = false;
     btnStopWebcam.disabled = true;
-    realtimeStatus.textContent = finalFrame ? 'Kamera dihentikan — memproses frame terakhir...' : 'Kamera dihentikan';
+    realtimeStatus.textContent = finalFrame ? 'Camera stopped — processing the last frame...' : 'Camera stopped';
     realtimeStatus.classList.remove('is-live', 'is-error');
 
     // 3. Kalau ada frame dengan deteksi, jalankan pipeline PENUH
@@ -530,14 +534,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.ok) {
           const data = await res.json();
           displayResults(data);
-          realtimeStatus.textContent = 'Kamera dihentikan — hasil analisis lengkap ditampilkan di bawah';
+          realtimeStatus.textContent = 'Camera stopped — full analysis results are shown below';
         } else {
-          realtimeStatus.textContent = 'Kamera dihentikan (gagal analisis frame terakhir)';
+          realtimeStatus.textContent = 'Camera stopped (failed to analyze the last frame)';
           realtimeStatus.classList.add('is-error');
         }
       } catch (err) {
         console.error('Gagal analisis frame terakhir:', err);
-        realtimeStatus.textContent = 'Kamera dihentikan (error koneksi server)';
+        realtimeStatus.textContent = 'Camera stopped (server connection error)';
         realtimeStatus.classList.add('is-error');
       } finally {
         showLoading(false);
@@ -580,7 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) {
         // Kalau 1 frame gagal diproses, jangan hentikan seluruh sesi realtime --
         // cukup catat di status, lanjut coba lagi di frame berikutnya.
-        realtimeStatus.textContent = 'Frame ini gagal diproses, mencoba lagi...';
+        realtimeStatus.textContent = 'This frame failed to process, retrying...';
         realtimeStatus.classList.add('is-error');
         return;
       }
@@ -588,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       renderRealtimeResult(data);
     } catch (err) {
-      realtimeStatus.textContent = 'Koneksi ke server bermasalah...';
+      realtimeStatus.textContent = 'Server connection problem...';
       realtimeStatus.classList.add('is-error');
     } finally {
       isProcessingFrame = false;
@@ -601,7 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
     realtimeOutput.src = data.annotated;
 
     const s = data.summary;
-    realtimeStatus.textContent = `Live -- ${s.total_biji} biji terdeteksi`;
+    realtimeStatus.textContent = `Live -- kernels detected: ${s.total_biji}`;
     realtimeStatus.classList.remove('is-error');
     realtimeStatus.classList.add('is-live');
 
@@ -613,9 +617,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.kernels && data.kernels.length > 0) {
       realtimeHasDetection = true;
     }
-    let text = s.total_biji > 0 ? `${s.sehat} sehat, ${s.terkontaminasi} terkontaminasi jamur (${s.persen_kontaminasi}%)` : 'Belum ada biji jagung terdeteksi di frame ini.';
+    let text = s.total_biji > 0 ? `${s.sehat} healthy, ${s.terkontaminasi} mold-contaminated (${s.persen_kontaminasi}%)` : 'No corn kernels detected in this frame yet.';
     if (s.bukan_jagung > 0) {
-      text += ` -- ${s.bukan_jagung} objek bukan jagung diabaikan.`;
+      text += ` -- ignored non-corn objects: ${s.bukan_jagung}.`;
     }
     realtimeSummary.textContent = text;
   }
