@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let realtimeHasDetection = false; // flag: apakah ada biji terdeteksi selama sesi realtime ini
   let lastRealtimeFrame = null; // menyimpan frame terakhir (base64) untuk analisis penuh saat kamera dihentikan
 
-  const REALTIME_INTERVAL_MS = 1000; // jeda ambil frame: 1000ms = 1 kali per detik (bisa diubah)
+  const REALTIME_INTERVAL_MS = 400; // jeda ambil frame: 400ms (~2.5 FPS) untuk deteksi realtime lebih cepat
 
   async function startWebcam() {
     // Cek dulu apakah browser menyediakan akses kamera
@@ -497,18 +497,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // diproses oleh pipeline penuh (bukan lightweight) supaya hasilnya
   // bisa ditampilkan lengkap: tahapan preprocessing, kartu per-biji
   // dengan K-Means clustering, dan tabel fitur GLCM & HSV.
+  function captureStandardizedSquare(videoEl, targetDim = 224, quality = 0.85) {
+    const vw = videoEl.videoWidth;
+    const vh = videoEl.videoHeight;
+    const side = Math.min(vw, vh);
+    const sx = Math.floor((vw - side) / 2);
+    const sy = Math.floor((vh - side) / 2);
+    webcamCanvas.width = targetDim;
+    webcamCanvas.height = targetDim;
+    const ctx = webcamCanvas.getContext('2d');
+    ctx.drawImage(videoEl, sx, sy, side, side, 0, 0, targetDim, targetDim);
+    return webcamCanvas.toDataURL('image/jpeg', quality);
+  }
+
   async function stopWebcamAndAnalyze() {
-    // 1. Tangkap frame terakhir SEBELUM kamera dimatikan (kualitas lebih tinggi)
+    // 1. Tangkap frame terakhir SEBELUM kamera dimatikan (otomatis center-crop & resize 224x224)
     let finalFrame = null;
-    if (realtimeHasDetection && webcamVideo.videoWidth) {
-      webcamCanvas.width = webcamVideo.videoWidth;
-      webcamCanvas.height = webcamVideo.videoHeight;
-      const ctx = webcamCanvas.getContext('2d');
-      ctx.drawImage(webcamVideo, 0, 0, webcamCanvas.width, webcamCanvas.height);
-      finalFrame = webcamCanvas.toDataURL('image/jpeg', 0.92);
+    if (webcamVideo.videoWidth) {
+      finalFrame = captureStandardizedSquare(webcamVideo, 224, 0.92);
     }
     // Fallback ke frame terakhir yang tersimpan kalau capture gagal
-    if (!finalFrame && realtimeHasDetection && lastRealtimeFrame) {
+    if (!finalFrame && lastRealtimeFrame) {
       finalFrame = lastRealtimeFrame;
     }
 
@@ -560,17 +569,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Video belum siap (ukuran masih 0) -> tunggu interval berikutnya
     if (!webcamVideo.videoWidth) return;
 
-    // Samakan ukuran canvas dengan ukuran asli video, lalu "gambar ulang" frame
-    // video saat ini ke dalam canvas -- ini teknik standar untuk "menjepret"
-    // 1 frame diam dari video yang sedang berjalan.
-    webcamCanvas.width = webcamVideo.videoWidth;
-    webcamCanvas.height = webcamVideo.videoHeight;
-    const ctx = webcamCanvas.getContext('2d');
-    ctx.drawImage(webcamVideo, 0, 0, webcamCanvas.width, webcamCanvas.height);
-
-    // Ubah isi canvas jadi teks base64 JPEG. Kualitas 0.8 (dari maksimal 1.0)
-    // dipilih supaya ukuran datanya tidak terlalu besar tapi kualitasnya tetap layak.
-    const frameDataUrl = webcamCanvas.toDataURL('image/jpeg', 0.8);
+    // Otomatis center-crop dan resize frame video ke resolusi standar 224x224
+    // agar pengiriman data dan pemrosesan realtime jauh lebih cepat dan efisien.
+    const frameDataUrl = captureStandardizedSquare(webcamVideo, 224, 0.82);
     lastRealtimeFrame = frameDataUrl; // simpan untuk analisis penuh saat kamera dihentikan
 
     isProcessingFrame = true;
