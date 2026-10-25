@@ -163,12 +163,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // dan pakai totalJagung (bukan summary.total_biji) supaya persentase
     // kontaminasi yang disebut tetap konsisten dengan angka yang dihitung
     // pipeline (kontaminasi dihitung dari objek yang memang jagung saja).
-    let descText =
-      totalJagung > 0
-        ? `Corn kernels detected: ${totalJagung} (${summary.sehat} healthy, ${summary.terkontaminasi} mold-infected). Contamination rate: ${summary.persen_kontaminasi}%.`
-        : `No corn kernels were detected in this image.`;
-    if (bukanJagungCount > 0) {
-      descText += ` Other objects not recognized as corn kernels: ${bukanJagungCount} (excluded from the quality assessment).`;
+    let descText = '';
+    if (totalJagung === 0) {
+      descText = 'No corn kernels were detected in this image.';
+      if (bukanJagungCount > 0) {
+        descText += ` Objects detected as NOT corn: ${bukanJagungCount}.`;
+      }
+    } else if (bukanJagungCount > totalJagung) {
+      descText = `Not Corn: detected ${bukanJagungCount} non-corn object(s) vs only ${totalJagung} corn-like object(s) (${summary.sehat} healthy, ${summary.terkontaminasi} mold-infected). Because non-corn objects predominate, the overall result is classified as Not Corn.`;
+    } else {
+      descText = `Corn kernels detected: ${totalJagung} (${summary.sehat} healthy, ${summary.terkontaminasi} mold-infected). Contamination rate: ${summary.persen_kontaminasi}%.`;
+      if (bukanJagungCount > 0) {
+        descText += ` Other objects not recognized as corn kernels: ${bukanJagungCount} (excluded from the quality assessment).`;
+      }
     }
     document.getElementById('status-desc').textContent = descText;
 
@@ -618,9 +625,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.kernels && data.kernels.length > 0) {
       realtimeHasDetection = true;
     }
-    let text = s.total_biji > 0 ? `${s.sehat} healthy, ${s.terkontaminasi} mold-contaminated (${s.persen_kontaminasi}%)` : 'No corn kernels detected in this frame yet.';
-    if (s.bukan_jagung > 0) {
-      text += ` -- ignored non-corn objects: ${s.bukan_jagung}.`;
+    const totalJagung = (s.sehat || 0) + (s.terkontaminasi || 0);
+    const bukanJagung = s.bukan_jagung || 0;
+    let text = '';
+    if (totalJagung === 0) {
+      text = bukanJagung > 0 ? `Not Corn (${bukanJagung} non-corn object(s) detected).` : 'No corn kernels detected in this frame yet.';
+    } else if (bukanJagung > totalJagung) {
+      text = `Not Corn -- non-corn objects predominate (${bukanJagung} non-corn vs ${totalJagung} corn-like).`;
+    } else {
+      text = `${s.sehat} healthy, ${s.terkontaminasi} mold-contaminated (${s.persen_kontaminasi}%)`;
+      if (bukanJagung > 0) {
+        text += ` -- ignored non-corn objects: ${bukanJagung}.`;
+      }
     }
     realtimeSummary.textContent = text;
   }

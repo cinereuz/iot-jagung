@@ -1,5 +1,5 @@
 venv/
-data/raw/
-data/cropped/
-data/proprocessed/
+data/
+**/data/
+**/data/**
 __pycache__/

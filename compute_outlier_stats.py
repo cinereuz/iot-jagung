@@ -2,10 +2,10 @@
 compute_outlier_stats.py
 
 TUJUAN:
-Menghitung statistik jarak Mahalanobis global dan sub-klaster pencahayaan dari data
-training (`data/manifest_fitur.csv`) untuk dipakai sebagai basis deteksi "bukan_jagung"
-(novelty/outlier detection) di `src/pipeline.py` -- TANPA perlu dataset foto tambahan
-kelas ke-3, sesuai arahan dosen.
+Menghitung statistik jarak Mahalanobis global dan 5 sub-klaster rezim pencahayaan/sudut
+dari data training (`data/manifest_fitur.csv`) untuk dipakai sebagai basis deteksi
+"bukan_jagung" (multi-layer novelty/outlier detection) di `src/pipeline.py` -- TANPA
+perlu dataset foto tambahan kelas ke-3, sesuai arahan dosen.
 """
 
 import pandas as pd
@@ -27,36 +27,36 @@ class_stats = {}
 for label in ["sehat", "terkontaminasi"]:
     X_class = X_scaled[y == label]
     mean_vec = X_class.mean(axis=0)
-    cov_mat = np.cov(X_class, rowvar=False) + np.eye(X_class.shape[1]) * 1e-6
+    cov_mat = np.cov(X_class, rowvar=False) + np.eye(X_class.shape[1]) * 1e-5
     cov_inv = np.linalg.inv(cov_mat)
 
     diffs = X_class - mean_vec
     distances = np.sqrt(np.einsum("ij,jk,ik->i", diffs, cov_inv, diffs))
-    thr_global = max(float(np.percentile(distances, 99.5)), 11.5)
+    thr_global = float(np.percentile(distances, 98.5))
 
-    km = KMeans(n_clusters=3, random_state=42, n_init=10).fit(X_class)
+    km = KMeans(n_clusters=5, random_state=42, n_init=10).fit(X_class)
     subclusters = []
-    for cid in range(3):
+    for cid in range(5):
         sub_pts = X_class[km.labels_ == cid]
-        if len(sub_pts) < 10:
+        if len(sub_pts) < 15:
             continue
         s_mean = np.mean(sub_pts, axis=0)
         s_cov = np.cov(sub_pts, rowvar=False) + np.eye(sub_pts.shape[1]) * 1e-4
         s_inv = np.linalg.inv(s_cov)
         s_diffs = sub_pts - s_mean
         s_dists = np.sqrt(np.sum((s_diffs @ s_inv) * s_diffs, axis=1))
-        s_thr = float(np.percentile(s_dists, 99.5))
+        s_thr = float(np.percentile(s_dists, 98.8))
         subclusters.append({
             "mean": s_mean,
             "cov_inv": s_inv,
-            "distance_threshold": max(s_thr, 4.5)
+            "distance_threshold": max(s_thr, 3.8)
         })
 
     class_stats[label] = {
         "mean": mean_vec,
         "cov_inv": cov_inv,
         "distance_threshold": thr_global,
-        "percentile": 99.5,
+        "percentile": 98.8,
         "n_samples": int(len(X_class)),
         "subclusters": subclusters
     }
