@@ -103,10 +103,13 @@ def run_detection(img):
 
     # Format images to base64
     images_b64 = {
+        "raw_input": mat_to_base64(results["images"].get("raw_input", results["images"]["original"])),
         "original": mat_to_base64(results["images"]["original"]),
         "gray": mat_to_base64(results["images"]["gray"]),
         "blur": mat_to_base64(results["images"]["blur"]),
+        "resized_blur": mat_to_base64(results["images"].get("resized_blur", results["images"]["blur"])),
         "otsu_mask": mat_to_base64(results["images"]["otsu_mask"]),
+        "seg_overlay": mat_to_base64(results["images"].get("seg_overlay", results["images"]["annotated"])),
         "annotated": mat_to_base64(results["images"]["annotated"])
     }
 
@@ -116,13 +119,19 @@ def run_detection(img):
         k_dict = {
             "kernel_id": k["kernel_id"],
             "bbox": k["bbox"],
+            "area_piksel": k.get("area_piksel"),
+            "solidity": k.get("solidity"),
+            "aspect_ratio": k.get("aspect_ratio"),
             "prediction": k["prediction"],
             "is_moldy": k["is_moldy"],
             "is_corn": k.get("is_corn"),  # BARU -- untuk debugging & tampilan frontend nanti
             "confidence": k["confidence"],
+            "decision_score": k.get("decision_score"),
             "mold_ratio": k["mold_ratio"],
+            "cluster_centers": k.get("cluster_centers", []),
             "probabilities": k["probabilities"],
             "features": k["features"],
+            "scaled_features": k.get("scaled_features"),
             # BARU -- 3 field ini dipakai untuk mengecek & men-tuning deteksi 'bukan jagung'
             "outlier_distance": k.get("outlier_distance"),
             "outlier_threshold": k.get("outlier_threshold"),
@@ -136,6 +145,7 @@ def run_detection(img):
     return {
         "status": "success",
         "summary": results["summary"],
+        "stage_meta": results.get("stage_meta", {}),
         "images": images_b64,
         "kernels": kernels_formatted
     }

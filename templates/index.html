@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=6">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌽</text></svg>">
 </head>
 <body>
@@ -141,86 +141,399 @@
                 </div>
             </section>
 
-            <section class="card stages-card" aria-label="Methodology Stage Visualization">
-                <h2 class="card-title">
-                    Image Processing Steps Visualization
-                    <!-- <span class="hide-mobile">(Sesuai Paper)</span> -->
-                </h2>
-
-                <div class="stage-nav">
-                    <button type="button" class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">SVM Detection Result</button>
-                    <button type="button" class="stage-btn" data-stage="original" id="btn-stage-original">Original Image</button>
-                    <button type="button" class="stage-btn" data-stage="gray-blur" id="btn-stage-gray-blur">Grayscale + Gaussian Blur</button>
-                    <button type="button" class="stage-btn" data-stage="otsu" id="btn-stage-otsu">Otsu Segmentation Mask</button>
-                </div>
-
-                <div class="stage-display">
-                    <div class="stage-img-wrapper">
-                        <img id="stage-image" src="" alt="Processing Stage Visualization">
+            <!-- ============ HYBRID STEPPER & TAB PIPELINE INTERFACE ============ -->
+            <section class="card pipeline-inspector-card" aria-label="Methodology Pipeline Inspector">
+                <div class="inspector-top-bar">
+                    <div>
+                        <h2 class="card-title">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="2" y="3" width="6" height="6" rx="1.5"/>
+                                <rect x="9" y="9" width="6" height="6" rx="1.5"/>
+                                <rect x="16" y="15" width="6" height="6" rx="1.5"/>
+                                <path d="M8 6h4a2 2 0 0 1 2 2v1M15 12h4a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                            Methodology Pipeline Inspector (Step-by-Step Interface)
+                        </h2>
+                        <p class="card-desc" style="margin-bottom:0;">
+                            Explore each stage of the detection methodology sequentially using the Stepper or jump directly to any tab.
+                        </p>
                     </div>
-                    <p class="stage-description" id="stage-desc"></p>
+                    <div class="inspector-mode-Switch">
+                        <button type="button" class="btn btn-outline active-mode" id="btn-mode-stepper" title="View one stage at a time with Next/Previous controls">
+                            Step-by-Step View
+                        </button>
+                        <button type="button" class="btn btn-outline" id="btn-mode-all" title="Expand all 5 stages on a single scrollable page">
+                            Show All Stages
+                        </button>
+                    </div>
                 </div>
-            </section>
 
-            <section class="card card-tight" aria-label="Per-Kernel Segmentation Details">
-                <h2 class="card-title">Per-Kernel Analysis &amp; Mold Isolation (K-Means Clustering)</h2>
-                <p class="card-desc">
-                    Each corn kernel segmented by Otsu is analyzed for its mold lesion area using K-Means Clustering in the HSV color space. Objects not recognized as corn kernels (marked with the gray "Not Corn" badge) are excluded from the quality assessment:
-                </p>
-                <div class="kernels-grid" id="kernels-grid"></div>
-            </section>
-
-            <section class="card" aria-label="GLCM and HSV Feature Table">
-                <div class="card-head-row">
-                    <h2 class="card-title">
-                        <!-- Grafik batang: sumbu L + 4 batang, garis tebal ujung bulat -->
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3.5 3.5V17.5A3 3 0 0 0 6.5 20.5H21"/>
-                            <path d="M8.5 13.5V16.5M12.2 9.5V16.5M15.9 12V16.5M19.6 6.5V16.5"/>
-                        </svg>
-                        GLCM &amp; HSV Feature Extraction Matrix
-                    </h2>
-                    <button type="button" class="btn btn-download" id="btn-export-csv">
-                        <!-- Panah turun ke nampan -->
-                        <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true">
-                            <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M12 3V12.5M8.3 9.3L12 13L15.7 9.3"/>
-                            <path fill="currentColor" d="M3.5 17.2A2.2 2.2 0 0 1 5.7 15H8L10.6 17.2H13.4L16 15H18.3A2.2 2.2 0 0 1 20.5 17.2V19A2.2 2.2 0 0 1 18.3 21.2H5.7A2.2 2.2 0 0 1 3.5 19Z"/>
-                            <circle fill="#CFF7E8" cx="17" cy="18.2" r="0.9"/>
-                        </svg>
-                        Download Features CSV
+                <!-- Hybrid Stepper + Tabs Navigation -->
+                <nav class="pipeline-stepper" id="pipeline-stepper" aria-label="Pipeline Stages">
+                    <button type="button" class="stepper-tab active" data-step="1" id="tab-step-1">
+                        <span class="step-num">1</span>
+                        <span class="step-text">
+                            <span class="step-title"><span class="hide-mobile-inline">Input &amp; </span>ROI</span>
+                            <span class="step-sub">224&times;224 Crop</span>
+                        </span>
                     </button>
-                </div>
+                    <div class="step-connector" aria-hidden="true"></div>
+                    <button type="button" class="stepper-tab" data-step="2" id="tab-step-2">
+                        <span class="step-num">2</span>
+                        <span class="step-text">
+                            <span class="step-title">Preprocess<span class="hide-mobile-inline">ing</span></span>
+                            <span class="step-sub">Gray &amp; Gaussian</span>
+                        </span>
+                    </button>
+                    <div class="step-connector" aria-hidden="true"></div>
+                    <button type="button" class="stepper-tab" data-step="3" id="tab-step-3">
+                        <span class="step-num">3</span>
+                        <span class="step-text">
+                            <span class="step-title">Segment<span class="hide-mobile-inline">ation</span></span>
+                            <span class="step-sub">Otsu &amp; K-Means</span>
+                        </span>
+                    </button>
+                    <div class="step-connector" aria-hidden="true"></div>
+                    <button type="button" class="stepper-tab" data-step="4" id="tab-step-4">
+                        <span class="step-num">4</span>
+                        <span class="step-text">
+                            <span class="step-title">Features<span class="hide-mobile-inline"> Extraction</span></span>
+                            <span class="step-sub">GLCM &amp; HSV</span>
+                        </span>
+                    </button>
+                    <div class="step-connector" aria-hidden="true"></div>
+                    <button type="button" class="stepper-tab" data-step="5" id="tab-step-5">
+                        <span class="step-num">5</span>
+                        <span class="step-text">
+                            <span class="step-title">SVM<span class="hide-mobile-inline"> Classification</span></span>
+                            <span class="step-sub">Hyperplane &amp; Grade</span>
+                        </span>
+                    </button>
+                </nav>
 
-                <!-- Desktop: tabel penuh -->
-                <div class="table-responsive" id="feature-table-wrap">
-                    <table id="feature-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>SVM Status</th>
-                                <th>Conf</th>
-                                <th>% Mold</th>
-                                <th>Contrast</th>
-                                <th>Correlation</th>
-                                <th>Energy</th>
-                                <th>Homogeneity</th>
-                                <th>Hue</th>
-                                <th>Saturation</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-
-                <!-- Mobile: 1 biji per halaman + tombol Previous/Next (diisi app.js) -->
-                <div class="feature-pager" id="feature-pager">
-                    <div class="pager-card" id="pager-card"></div>
-                    <div class="pager-nav">
-                        <button type="button" class="pager-btn" id="pager-prev">&#8249; Previous</button>
-                        <span class="pager-info" id="pager-info">1 of 1</span>
-                        <button type="button" class="pager-btn" id="pager-next">Next &#8250;</button>
+                <!-- Shared Kernel Selector Bar (Active on Steps 3, 4, 5) -->
+                <div class="kernel-selector-bar" id="kernel-selector-bar" style="display: none;">
+                    <div class="kernel-selector-top">
+                        <div class="kernel-selector-label">
+                            <strong>Inspect Detected Kernel:</strong>
+                            <span>Select a kernel to synchronize K-Means (Step 3), Features (Step 4), and SVM Decision (Step 5):</span>
+                        </div>
+                        <div class="kernel-quick-nav">
+                            <button type="button" class="kernel-nav-btn" id="kernel-nav-prev" aria-label="Previous Kernel">&#8249; Prev</button>
+                            <select id="kernel-select-dropdown" class="kernel-select-dropdown" aria-label="Select Detected Kernel"></select>
+                            <button type="button" class="kernel-nav-btn" id="kernel-nav-next" aria-label="Next Kernel">Next &#8250;</button>
+                        </div>
                     </div>
+                    <div class="kernel-selector-pills" id="kernel-selector-pills"></div>
+                </div>
+
+                <!-- ==================== STEP 1: INPUT & ROI STANDARDIZATION ==================== -->
+                <div class="pipeline-step-pane active" id="pipeline-step-1" data-step-pane="1">
+                    <div class="step-pane-header">
+                        <span class="step-badge">Stage 1 of 5</span>
+                        <h3>Image Acquisition &amp; Smart ROI Square Standardization</h3>
+                        <p>Standardizes arbitrary camera resolutions into a centered 224&times;224 square frame while preserving background borders for accurate Otsu polarity estimation.</p>
+                    </div>
+
+                    <div class="step-compare-grid two-col">
+                        <div class="visual-box">
+                            <div class="visual-box-head">
+                                <span>1A. Raw Input Image</span>
+                                <span class="mono-tag" id="step1-raw-dim">-</span>
+                            </div>
+                            <div class="visual-img-frame">
+                                <img id="step1-raw-img" src="" alt="Raw Uploaded Image">
+                            </div>
+                            <p class="visual-caption">Original uploaded frame before aspect-ratio standardization.</p>
+                        </div>
+
+                        <div class="visual-box">
+                            <div class="visual-box-head">
+                                <span>1B. Standardized ROI Frame</span>
+                                <span class="mono-tag">224 &times; 224 px</span>
+                            </div>
+                            <div class="visual-img-frame">
+                                <img id="step1-std-img" src="" alt="Standardized 224x224 Image">
+                            </div>
+                            <p class="visual-caption">Smart centered square crop resized via area/cubic interpolation to 224&times;224 px.</p>
+                        </div>
+                    </div>
+
+                    <div class="step-params-grid" id="step1-meta-grid"></div>
+
+                    <div class="theory-box">
+                        <strong>Why Smart ROI Standardization?</strong>
+                        <span>Directly stretching non-square photos distorts kernel geometry (aspect ratio &amp; solidity), while tight cropping removes the background border needed to detect whether the surface is dark cloth or white paper.</span>
+                    </div>
+                </div>
+
+                <!-- ==================== STEP 2: PREPROCESSING ==================== -->
+                <div class="pipeline-step-pane" id="pipeline-step-2" data-step-pane="2">
+                    <div class="step-pane-header">
+                        <span class="step-badge">Stage 2 of 5</span>
+                        <h3>Image Preprocessing: Color Conversion &amp; Gaussian Noise Filtering</h3>
+                        <p>Converts the standardized BGR image to luminance grayscale and applies Gaussian smoothing to suppress high-frequency camera sensor and cloth-weave noise.</p>
+                    </div>
+
+                    <div class="step-compare-grid three-col">
+                        <div class="visual-box">
+                            <div class="visual-box-head">
+                                <span>2A. Standardized RGB</span>
+                                <span class="mono-tag">3 Channels (BGR)</span>
+                            </div>
+                            <div class="visual-img-frame">
+                                <img id="step2-rgb-img" src="" alt="Standardized RGB">
+                            </div>
+                            <p class="visual-caption">Input 224&times;224 color image.</p>
+                        </div>
+
+                        <div class="visual-box">
+                            <div class="visual-box-head">
+                                <span>2B. Grayscale Conversion</span>
+                                <span class="mono-tag">Single Channel (0–255)</span>
+                            </div>
+                            <div class="visual-img-frame">
+                                <img id="step2-gray-img" src="" alt="Grayscale Image">
+                            </div>
+                            <p class="visual-caption">Luminance conversion: <code>Y = 0.299R + 0.587G + 0.114B</code>.</p>
+                        </div>
+
+                        <div class="visual-box">
+                            <div class="visual-box-head">
+                                <span>2C. Gaussian Blur Filtered</span>
+                                <span class="mono-tag">Kernel 5&times;5, &sigma;=0</span>
+                            </div>
+                            <div class="visual-img-frame">
+                                <img id="step2-blur-img" src="" alt="Gaussian Blurred Image">
+                            </div>
+                            <p class="visual-caption">Smoothed grayscale image ready for Otsu thresholding.</p>
+                        </div>
+                    </div>
+
+                    <div class="step-split-panel">
+                        <div class="sub-panel">
+                            <h4 class="sub-panel-title">Pixel Intensity Histogram (Grayscale vs Gaussian Blur)</h4>
+                            <div class="canvas-wrap">
+                                <canvas id="step2-hist-canvas" width="520" height="210"></canvas>
+                            </div>
+                            <p class="visual-caption">Distribution of pixel intensities across 32 bins (0–255). Smoothing attenuates local intensity spikes.</p>
+                        </div>
+                        <div class="sub-panel">
+                            <h4 class="sub-panel-title">Preprocessing Diagnostics &amp; Parameters</h4>
+                            <div class="step-params-grid compact" id="step2-stats-grid"></div>
+                            <div class="theory-box" style="margin-top:0.75rem;">
+                                <strong>Role of Gaussian Blur:</strong>
+                                <span>A 5&times;5 Gaussian low-pass filter prevents fine fabric textures or specular dust from creating false binary blobs during Otsu thresholding, while a 3&times;3 smoothing on 128&times;128 crops stabilizes GLCM texture extraction.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== STEP 3: SEGMENTATION (OTSU, WATERSHED & K-MEANS) ==================== -->
+                <div class="pipeline-step-pane" id="pipeline-step-3" data-step-pane="3">
+                    <div class="step-pane-header">
+                        <span class="step-badge">Stage 3 of 5</span>
+                        <h3>Two-Level Segmentation: Otsu + Watershed (Kernels) &amp; HSV K-Means (Mold Lesions)</h3>
+                        <p>Separates individual corn kernels from the background using Warmth-Guided Otsu Thresholding and CLAHE Distance-Transform Watershed, then isolates fungal lesions per kernel via K-Means clustering.</p>
+                    </div>
+
+                    <!-- Sub-stage 3A: Scene Segmentation -->
+                    <div class="sub-stage-block">
+                        <div class="sub-stage-header">
+                            <h4>Sub-Stage 3A: Global Kernel Segmentation (Otsu Thresholding &amp; Watershed Splitting)</h4>
+                        </div>
+                        <div class="step-compare-grid two-col">
+                            <div class="visual-box">
+                                <div class="visual-box-head">
+                                    <span>Binary Otsu Foreground Mask</span>
+                                    <span class="mono-tag" id="step3-otsu-tag">Otsu + Morph Open</span>
+                                </div>
+                                <div class="visual-img-frame">
+                                    <img id="step3-otsu-img" src="" alt="Otsu Binary Mask">
+                                </div>
+                                <p class="visual-caption">Foreground mask after cool-glare suppression, Otsu thresholding, 3&times;3 elliptical opening, and hole filling.</p>
+                            </div>
+
+                            <div class="visual-box">
+                                <div class="visual-box-head">
+                                    <span>Watershed Instance Contours &amp; ROIs</span>
+                                    <span class="mono-tag" id="step3-roi-count">0 Objects</span>
+                                </div>
+                                <div class="visual-img-frame">
+                                    <img id="step3-overlay-img" src="" alt="Segmented Kernel ROIs">
+                                </div>
+                                <p class="visual-caption">Individual kernel contours separated via CLAHE crease detection and distance-transform watershed.</p>
+                            </div>
+                        </div>
+
+                        <div class="step-params-grid" id="step3-seg-stats" style="margin-top:0.85rem;"></div>
+
+                        <!-- Quick Stage Switcher (Backward-compatible interactive viewer) -->
+                        <details class="quick-stage-expander">
+                            <summary>Quick Full-Size Stage Image Switcher (Original / Blur / Otsu / Annotated)</summary>
+                            <div class="stage-nav" style="margin-top:0.75rem;">
+                                <button type="button" class="stage-btn active" data-stage="annotated" id="btn-stage-annotated">SVM Detection Result</button>
+                                <button type="button" class="stage-btn" data-stage="original" id="btn-stage-original">Original Image</button>
+                                <button type="button" class="stage-btn" data-stage="gray-blur" id="btn-stage-gray-blur">Grayscale + Gaussian Blur</button>
+                                <button type="button" class="stage-btn" data-stage="otsu" id="btn-stage-otsu">Otsu Segmentation Mask</button>
+                            </div>
+                            <div class="stage-display">
+                                <div class="stage-img-wrapper">
+                                    <img id="stage-image" src="" alt="Processing Stage Visualization">
+                                </div>
+                                <p class="stage-description" id="stage-desc"></p>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- Sub-stage 3B: Selected Kernel K-Means -->
+                    <div class="sub-stage-block" style="margin-top:1.25rem;">
+                        <div class="sub-stage-header">
+                            <h4>Sub-Stage 3B: Selected Kernel Lesion Isolation (HSV K-Means Clustering, K=3)</h4>
+                        </div>
+                        <div id="step3-selected-kernel-panel" class="selected-kernel-kmeans"></div>
+                    </div>
+
+                    <!-- All Kernels Grid (Desktop) & Pager (Mobile) -->
+                    <div class="sub-stage-block" style="margin-top:1.25rem;">
+                        <div class="sub-stage-header">
+                            <h4>All Segmented Kernels Overview (Click any card to inspect)</h4>
+                        </div>
+                        <!-- Desktop: full grid -->
+                        <div class="kernels-grid" id="kernels-grid"></div>
+
+                        <!-- Mobile: 1 kernel per page + Previous/Next pagination (same pattern as GLCM/HSV Matrix) -->
+                        <div class="kernel-overview-pager" id="kernel-overview-pager">
+                            <div class="kernel-overview-pager-card" id="kernel-overview-pager-card"></div>
+                            <div class="pager-nav">
+                                <button type="button" class="pager-btn" id="kernel-pager-prev">&#8249; Previous</button>
+                                <span class="pager-info" id="kernel-pager-info">1 of 1</span>
+                                <button type="button" class="pager-btn" id="kernel-pager-next">Next &#8250;</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== STEP 4: FEATURE EXTRACTION (GLCM & HSV) ==================== -->
+                <div class="pipeline-step-pane" id="pipeline-step-4" data-step-pane="4">
+                    <div class="step-pane-header">
+                        <span class="step-badge">Stage 4 of 5</span>
+                        <h3>Feature Extraction: GLCM Texture Matrix &amp; HSV Color Space</h3>
+                        <p>Extracts 7 quantitative features per kernel (128&times;128 standardized crop): 4 second-order statistical texture features from the Gray-Level Co-occurrence Matrix (GLCM) and 3 background-compensated HSV color features.</p>
+                    </div>
+
+                    <div class="step-split-panel">
+                        <!-- GLCM Texture Panel -->
+                        <div class="sub-panel">
+                            <div class="sub-panel-head">
+                                <h4 class="sub-panel-title">4A. GLCM Texture Features (d=1, &theta;=0&deg;, 45&deg;, 90&deg;, 135&deg;)</h4>
+                                <span class="mono-tag" id="step4-kernel-badge">Kernel #1</span>
+                            </div>
+                            <div id="step4-glcm-bars" class="feature-bars-list"></div>
+                        </div>
+
+                        <!-- HSV Color & Standardized Z-Score Profile -->
+                        <div class="sub-panel">
+                            <div class="sub-panel-head">
+                                <h4 class="sub-panel-title">4B. HSV Color Space &amp; 7D Scaled Z-Score Profile</h4>
+                                <span class="mono-tag">StandardScaler (Z-Score)</span>
+                            </div>
+                            <div id="step4-hsv-panel" class="hsv-inspector-box"></div>
+                            <div class="canvas-wrap" style="margin-top:0.75rem;">
+                                <canvas id="step4-feature-canvas" width="480" height="185"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Feature Table & CSV Export -->
+                    <div class="sub-stage-block" style="margin-top:1.25rem;">
+                        <div class="card-head-row">
+                            <h4 class="sub-panel-title" style="margin:0; display:flex; align-items:center; gap:0.5rem;">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M3.5 3.5V17.5A3 3 0 0 0 6.5 20.5H21"/>
+                                    <path d="M8.5 13.5V16.5M12.2 9.5V16.5M15.9 12V16.5M19.6 6.5V16.5"/>
+                                </svg>
+                                Complete GLCM &amp; HSV Feature Extraction Matrix (Click a row to inspect)
+                            </h4>
+                            <button type="button" class="btn btn-download" id="btn-export-csv">
+                                <svg class="icon-sm" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M12 3V12.5M8.3 9.3L12 13L15.7 9.3"/>
+                                    <path fill="currentColor" d="M3.5 17.2A2.2 2.2 0 0 1 5.7 15H8L10.6 17.2H13.4L16 15H18.3A2.2 2.2 0 0 1 20.5 17.2V19A2.2 2.2 0 0 1 18.3 21.2H5.7A2.2 2.2 0 0 1 3.5 19Z"/>
+                                    <circle fill="#CFF7E8" cx="17" cy="18.2" r="0.9"/>
+                                </svg>
+                                Download Features CSV
+                            </button>
+                        </div>
+
+                        <!-- Desktop: tabel penuh -->
+                        <div class="table-responsive" id="feature-table-wrap">
+                            <table id="feature-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>SVM Status</th>
+                                        <th>Conf</th>
+                                        <th>% Mold</th>
+                                        <th>Contrast</th>
+                                        <th>Correlation</th>
+                                        <th>Energy</th>
+                                        <th>Homogeneity</th>
+                                        <th>Hue</th>
+                                        <th>Saturation</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile: 1 biji per halaman + tombol Previous/Next (diisi app.js) -->
+                        <div class="feature-pager" id="feature-pager">
+                            <div class="pager-card" id="pager-card"></div>
+                            <div class="pager-nav">
+                                <button type="button" class="pager-btn" id="pager-prev">&#8249; Previous</button>
+                                <span class="pager-info" id="pager-info">1 of 1</span>
+                                <button type="button" class="pager-btn" id="pager-next">Next &#8250;</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== STEP 5: SVM CLASSIFICATION & NOVELTY EVALUATION ==================== -->
+                <div class="pipeline-step-pane" id="pipeline-step-5" data-step-pane="5">
+                    <div class="step-pane-header">
+                        <span class="step-badge">Stage 5 of 5</span>
+                        <h3>Novelty Detection Gate &amp; Support Vector Machine (RBF-SVM) Classification</h3>
+                        <p>Validates whether each object is a genuine corn kernel via 3-Layer Novelty Detection (Color/Warmth, Morphology, and 7D Subcluster Mahalanobis Distance), then classifies valid kernels using an RBF-Kernel SVM hyperplane.</p>
+                    </div>
+
+                    <div id="step5-decision-inspector" class="step-split-panel"></div>
+
+                    <div class="step-compare-grid two-col" style="margin-top:1.25rem;">
+                        <div class="visual-box">
+                            <div class="visual-box-head">
+                                <span>Final Annotated Detection Output</span>
+                                <span class="mono-tag">SVM + Novelty Gate</span>
+                            </div>
+                            <div class="visual-img-frame">
+                                <img id="step5-annotated-img" src="" alt="Final Annotated SVM Result">
+                            </div>
+                            <p class="visual-caption">Green = Healthy Kernel, Red = Mold-Contaminated Kernel, Gray = Rejected Non-Corn Object.</p>
+                        </div>
+
+                        <div class="visual-box" id="step5-batch-summary-box"></div>
+                    </div>
+                </div>
+
+                <!-- Stepper Footer Navigation -->
+                <div class="stepper-footer" id="stepper-footer">
+                    <button type="button" class="btn btn-outline stepper-nav-btn" id="btn-step-prev">
+                        &#8592; Previous Stage
+                    </button>
+                    <span class="stepper-progress-label" id="stepper-progress-label">Stage 1 of 5: Input &amp; ROI Standardization</span>
+                    <button type="button" class="btn btn-primary-teal stepper-nav-btn" id="btn-step-next">
+                        Next Stage: Preprocessing &#8594;
+                    </button>
                 </div>
             </section>
         </main>
@@ -237,6 +550,6 @@
         </footer>
     </div>
 
-    <script src="/static/app.js?v=4"></script>
+    <script src="/static/app.js?v=6"></script>
 </body>
 </html>

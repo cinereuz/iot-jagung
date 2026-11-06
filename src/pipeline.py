@@ -190,6 +190,9 @@ class CornDiseasePipeline:
         resized_gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
         resized_blur = cv2.GaussianBlur(resized_gray, (3, 3), 0)
 
+        hist_gray = cv2.calcHist([gray], [0], None, [32], [0, 256]).flatten().astype(int).tolist()
+        hist_blur = cv2.calcHist([blur], [0], None, [32], [0, 256]).flatten().astype(int).tolist()
+
         return {
             "original": img,
             "gray": gray,
@@ -197,6 +200,14 @@ class CornDiseasePipeline:
             "resized_img": resized_img,
             "resized_gray": resized_gray,
             "resized_blur": resized_blur,
+            "stats": {
+                "gray_mean": round(float(gray.mean()), 2),
+                "gray_std": round(float(gray.std()), 2),
+                "blur_mean": round(float(blur.mean()), 2),
+                "blur_std": round(float(blur.std()), 2),
+                "hist_gray": hist_gray,
+                "hist_blur": hist_blur,
+            },
         }
 
     def segment_kernels_otsu(self, img, min_area=90, max_area=50000, margin=4):
@@ -228,17 +239,19 @@ class CornDiseasePipeline:
         bg_gray = float(np.median(blur[b_mask]))
         bg_sat = float(np.median(sat[b_mask]))
 
-        _, th_bin = cv2.threshold(warm_blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        otsu_t1, th_bin = cv2.threshold(warm_blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         th_bin[(cool_diff >= 3.0) & (sat < 65)] = 0
         border_white_ratio = float(np.mean(th_bin[b_mask] > 0))
 
-        if (bg_gray > 75 and bg_sat < 25) or border_white_ratio > 0.45:
+        is_light_bg = (bg_gray > 75 and bg_sat < 25) or border_white_ratio > 0.45
+        if is_light_bg:
             diff_g = np.clip(bg_gray - blur.astype(np.float32), 0, 255)
             diff_s = np.clip(sat.astype(np.float32) - bg_sat, 0, 255)
             comb = np.clip(diff_g * 1.2 + diff_s * 0.8 - cool_diff * 2.5, 0, 255).astype(np.uint8)
-            _, raw_mask = cv2.threshold(comb, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            otsu_thresh_val, raw_mask = cv2.threshold(comb, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             raw_mask[(cool_diff >= 2.0) & (sat < 55)] = 0
         else:
+            otsu_thresh_val = otsu_t1
             raw_mask = th_bin
 
         k3 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -395,12 +408,20 @@ class CornDiseasePipeline:
             ):
                 continue
 
+            hull_k = cv2.convexHull(c)
+            hull_area_k = cv2.contourArea(hull_k)
+            solidity_k = round(float(cv2.contourArea(c)) / hull_area_k, 3) if hull_area_k > 0 else 1.0
+            bw_k, bh_k = x2 - x1, y2 - y1
+            aspect_k = round(max(bw_k, bh_k) / max(1.0, float(min(bw_k, bh_k))), 2)
+
             kid += 1
             valid_kernels.append(
                 {
                     "kernel_id": kid,
                     "bbox": (x1, y1, x2 - x1, y2 - y1),
                     "area_piksel": area,
+                    "solidity": solidity_k,
+                    "aspect_ratio": aspect_k,
                     "crop": crop_img,
                     "mask": k_mask[y1:y2, x1:x2],
                     "contour": c,
@@ -424,6 +445,14 @@ class CornDiseasePipeline:
         return {
             "otsu_mask": (final_labels > 0).astype(np.uint8) * 255,
             "kernels": valid_kernels,
+            "seg_stats": {
+                "otsu_threshold": round(float(otsu_thresh_val), 1),
+                "bg_gray": round(bg_gray, 1),
+                "bg_sat": round(bg_sat, 1),
+                "bg_mode": "Light Background (Polarity-Inverted)" if is_light_bg else "Dark Background (Standard Otsu)",
+                "raw_components": len(valid_cids),
+                "final_segments": len(valid_kernels),
+            },
         }
 
     def segment_fungus_kmeans(self, kernel_crop, k=3, mask=None):
@@ -681,6 +710,10 @@ class CornDiseasePipeline:
         )
 
         X_scaled = self.scaler.transform(feat_values)
+        scaled_dict = {
+            name: round(float(val), 3)
+            for name, val in zip(self.feature_names, X_scaled[0])
+        }
         is_corn, nearest_class, distance, threshold = self.check_is_corn(
             X_scaled[0], features_dict=features_dict, crop_img=crop_img, k_info=k_info
         )
@@ -691,6 +724,7 @@ class CornDiseasePipeline:
                 "confidence": None,
                 "probabilities": {"sehat": 0.0, "terkontaminasi": 0.0},
                 "decision_score": None,
+                "scaled_features": scaled_dict,
                 "outlier_distance": round(distance, 3) if distance is not None else None,
                 "outlier_threshold": round(threshold, 3)
                 if threshold is not None
@@ -720,6 +754,7 @@ class CornDiseasePipeline:
             "confidence": prob_dict.get(prediction, 90.0),
             "probabilities": prob_dict,
             "decision_score": round(decision, 3),
+            "scaled_features": scaled_dict,
             "outlier_distance": round(distance, 3) if distance is not None else None,
             "outlier_threshold": round(threshold, 3) if threshold is not None else None,
             "outlier_nearest_class": nearest_class,
@@ -736,6 +771,18 @@ class CornDiseasePipeline:
         4. SVM Classification, Batch Shadow Calibration, & Majority Non-Corn Rule
         5. Annotated Visuals & Batch Report Generation
         """
+        orig_h, orig_w = img.shape[:2] if img is not None and img.size > 0 else (224, 224)
+        max_raw_dim = max(orig_h, orig_w)
+        if max_raw_dim > 480:
+            r_scale = 480.0 / float(max_raw_dim)
+            raw_preview = cv2.resize(
+                img,
+                (max(1, int(round(orig_w * r_scale))), max(1, int(round(orig_h * r_scale)))),
+                interpolation=cv2.INTER_AREA,
+            )
+        else:
+            raw_preview = img.copy() if img is not None else None
+
         img = self.auto_resize_and_crop(img, target_size=(224, 224))
         prep = self.preprocess_image(img)
         seg_otsu = self.segment_kernels_otsu(img)
@@ -861,6 +908,15 @@ class CornDiseasePipeline:
                         pred_res["confidence"] = pred_res["probabilities"]["sehat"]
 
         annotated_img = img.copy()
+        seg_overlay = img.copy()
+        palette_bgr = [
+            (255, 195, 0),
+            (80, 220, 100),
+            (255, 120, 50),
+            (180, 105, 255),
+            (50, 205, 255),
+            (255, 150, 200),
+        ]
         kernel_results = []
         sehat_count = 0
         kontam_count = 0
@@ -868,6 +924,22 @@ class CornDiseasePipeline:
 
         for k, crop, kmeans_res, features, pred_res in raw_evals:
             label = pred_res["prediction"]
+            kid_idx = k["kernel_id"]
+            seg_color = palette_bgr[(kid_idx - 1) % len(palette_bgr)]
+            if k.get("contour") is not None:
+                cv2.drawContours(seg_overlay, [k["contour"]], -1, seg_color, 2)
+            sx, sy, sw, sh = k["bbox"]
+            cv2.rectangle(seg_overlay, (sx, sy), (sx + sw, sy + sh), seg_color, 1)
+            cv2.putText(
+                seg_overlay,
+                f"ROI #{kid_idx}",
+                (sx, max(sy - 5, 13)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.40,
+                seg_color,
+                1,
+                cv2.LINE_AA,
+            )
 
             if label == "sehat":
                 sehat_count += 1
@@ -899,14 +971,22 @@ class CornDiseasePipeline:
                 {
                     "kernel_id": k["kernel_id"],
                     "bbox": [int(v) for v in k["bbox"]],
+                    "area_piksel": int(k.get("area_piksel", w * h)),
+                    "solidity": k.get("solidity", 1.0),
+                    "aspect_ratio": k.get("aspect_ratio", round(max(w, h) / max(1.0, float(min(w, h))), 2)),
                     "prediction": label,
                     "is_moldy": (label == "terkontaminasi"),
                     "is_corn": (label != "bukan_jagung"),
                     "confidence": pred_res["confidence"],
+                    "decision_score": pred_res.get("decision_score"),
                     "features": features,
+                    "scaled_features": pred_res.get("scaled_features"),
                     "mold_ratio": round(kmeans_res["mold_ratio"] * 100, 1)
                     if kmeans_res
                     else 0.0,
+                    "cluster_centers": kmeans_res.get("cluster_centers", [])
+                    if kmeans_res
+                    else [],
                     "probabilities": pred_res["probabilities"],
                     "outlier_distance": pred_res.get("outlier_distance"),
                     "outlier_threshold": pred_res.get("outlier_threshold"),
@@ -952,12 +1032,27 @@ class CornDiseasePipeline:
                 "status_mutu": quality_status,
                 "badge": status_badge,
             },
+            "stage_meta": {
+                "input": {
+                    "orig_width": int(orig_w),
+                    "orig_height": int(orig_h),
+                    "orig_aspect": f"{round(orig_w / max(1, orig_h), 2)}:1",
+                    "std_width": int(img.shape[1]),
+                    "std_height": int(img.shape[0]),
+                    "was_cropped": bool(orig_w != 224 or orig_h != 224),
+                },
+                "preprocess": prep.get("stats", {}),
+                "segmentation": seg_otsu.get("seg_stats", {}),
+            },
             "kernels": kernel_results,
             "images": {
+                "raw_input": raw_preview if raw_preview is not None else img,
                 "original": img,
                 "gray": prep["gray"],
                 "blur": prep["blur"],
+                "resized_blur": prep["resized_blur"],
                 "otsu_mask": seg_otsu["otsu_mask"],
+                "seg_overlay": seg_overlay,
                 "annotated": annotated_img,
             },
         }
