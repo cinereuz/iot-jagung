@@ -3,12 +3,14 @@ import io
 import base64
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from typing import Optional
+from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Query
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from src.pipeline import CornDiseasePipeline
+from src import crowdsource
 
 app = FastAPI(title="Corn Kernel Mold Detector")
 
@@ -20,6 +22,10 @@ templates = Jinja2Templates(directory="templates")
 
 # Initialize pipeline
 pipeline = CornDiseasePipeline()
+
+# BARU -- Crowdsourcing dataset & continuous training
+admin_auth = crowdsource.AdminAuth()
+retrain_manager = crowdsource.RetrainManager(pipeline)
 
 def mat_to_base64(mat, is_rgb=False):
     """Encodes OpenCV image (BGR or Gray) into base64 JPEG string."""
@@ -92,14 +98,25 @@ async def detect_upload(file: UploadFile = File(...)):
     if img is None:
         raise HTTPException(status_code=400, detail="Invalid or corrupted image file format")
 
-    return run_detection(img)
+    # BARU -- hasil upload user otomatis masuk staging crowdsourcing
+    return run_detection(img, staging_source="upload")
 
-def run_detection(img):
-    """Runs pipeline and formats JSON response with base64 images."""
+def run_detection(img, staging_source=None):
+    """
+    Runs pipeline and formats JSON response with base64 images.
+
+    staging_source: kalau diisi ("upload" / "webcam"), foto utuh otomatis disimpan
+    ke data/staging/ (kecuali terdeteksi bukan jagung). Untuk sampel bawaan
+    dibiarkan None supaya tidak menduplikasi dataset.
+    """
     try:
         results = pipeline.process_image(img)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+
+    staging_info = None
+    if staging_source:
+        staging_info = crowdsource.save_to_staging(img, results, staging_source)
 
     # Format images to base64
     images_b64 = {
@@ -147,7 +164,8 @@ def run_detection(img):
         "summary": results["summary"],
         "stage_meta": results.get("stage_meta", {}),
         "images": images_b64,
-        "kernels": kernels_formatted
+        "kernels": kernels_formatted,
+        "staging": staging_info
     }
 
 
@@ -270,7 +288,140 @@ def detect_frame_full(req: FrameRequest):
     if img is None:
         raise HTTPException(status_code=400, detail="Failed to decode the image frame")
 
-    return run_detection(img)
+    # BARU -- frame terakhir saat kamera dihentikan ikut masuk staging
+    return run_detection(img, staging_source="webcam")
+
+
+# ================================================================
+# BARU -- Crowdsourcing Dataset & Continuous Training
+# ================================================================
+
+class FeedbackRequest(BaseModel):
+    id: str
+    is_correct: bool
+    suggested_label: Optional[str] = None
+
+
+@app.post("/api/staging/feedback")
+def staging_feedback(req: FeedbackRequest):
+    """Feedback opsional dari user biasa (tanpa login) tentang hasil deteksinya."""
+    if not crowdsource.submit_user_feedback(req.id, req.is_correct, req.suggested_label):
+        raise HTTPException(status_code=404, detail="Staging item not found or invalid label")
+    return {"status": "success"}
+
+
+# ---------- Autentikasi admin ----------
+class LoginRequest(BaseModel):
+    password: str
+
+
+def require_admin(token: Optional[str]):
+    if not admin_auth.is_valid(token):
+        raise HTTPException(status_code=401, detail="Admin login required")
+
+
+@app.post("/api/admin/login")
+def admin_login(req: LoginRequest):
+    token = admin_auth.login(req.password)
+    if not token:
+        raise HTTPException(status_code=401, detail="Wrong admin password")
+    return {"status": "success", "token": token}
+
+
+@app.post("/api/admin/logout")
+def admin_logout(x_admin_token: Optional[str] = Header(None)):
+    admin_auth.logout(x_admin_token)
+    return {"status": "success"}
+
+
+@app.get("/api/admin/check")
+def admin_check(x_admin_token: Optional[str] = Header(None)):
+    return {"valid": admin_auth.is_valid(x_admin_token)}
+
+
+# ---------- Kurasi staging ----------
+@app.get("/api/admin/stats")
+def admin_stats(x_admin_token: Optional[str] = Header(None)):
+    require_admin(x_admin_token)
+    return crowdsource.get_dataset_stats()
+
+
+@app.get("/api/admin/staging")
+def admin_staging(x_admin_token: Optional[str] = Header(None)):
+    require_admin(x_admin_token)
+    return {"items": crowdsource.list_staging()}
+
+
+@app.get("/api/admin/staging/image/{category}/{item_id}")
+def admin_staging_image(
+    category: str,
+    item_id: str,
+    kind: str = "original",
+    token: Optional[str] = Query(None),
+    x_admin_token: Optional[str] = Header(None),
+):
+    # <img src> tidak bisa mengirim header, jadi token juga diterima via query ?token=
+    require_admin(x_admin_token or token)
+    path = crowdsource.staging_image_path(category, item_id, kind)
+    if not path:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+class ApproveRequest(BaseModel):
+    id: str
+    label: str  # label final pilihan admin: "sehat" / "terkontaminasi"
+
+
+@app.post("/api/admin/staging/approve")
+def admin_approve(req: ApproveRequest, x_admin_token: Optional[str] = Header(None)):
+    require_admin(x_admin_token)
+    try:
+        return {"status": "success", **crowdsource.approve_item(req.id, req.label)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+class RejectRequest(BaseModel):
+    id: str
+
+
+@app.post("/api/admin/staging/reject")
+def admin_reject(req: RejectRequest, x_admin_token: Optional[str] = Header(None)):
+    require_admin(x_admin_token)
+    try:
+        return {"status": "success", **crowdsource.reject_item(req.id)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ---------- Re-training ----------
+@app.post("/api/admin/retrain")
+def admin_retrain(x_admin_token: Optional[str] = Header(None)):
+    """Memulai re-training di background thread (status dipantau via /api/admin/retrain/status)."""
+    require_admin(x_admin_token)
+    if not retrain_manager.start():
+        raise HTTPException(status_code=409, detail="Re-training is already running")
+    return {"status": "started"}
+
+
+@app.get("/api/admin/retrain/status")
+def admin_retrain_status(x_admin_token: Optional[str] = Header(None)):
+    require_admin(x_admin_token)
+    return retrain_manager.status()
+
+
+@app.post("/api/admin/rollback")
+def admin_rollback(x_admin_token: Optional[str] = Header(None)):
+    require_admin(x_admin_token)
+    try:
+        return {"status": "success", **retrain_manager.rollback()}
+    except (RuntimeError, FileNotFoundError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 if __name__ == "__main__":

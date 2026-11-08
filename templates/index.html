@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="/static/style.css?v=6">
+    <link rel="stylesheet" href="/static/style.css?v=7">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌽</text></svg>">
 </head>
 <body>
@@ -48,11 +48,90 @@
                         Paper Jatilima 2026
                     </a>
                 </div> -->
+
+                <!-- BARU -- Tombol mode admin (kurasi dataset crowdsourcing & re-training) -->
+                <div class="admin-header-actions">
+                    <button type="button" class="admin-toggle-btn" id="btn-admin-login">
+                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="4.5" y="10.5" width="15" height="10" rx="2"/>
+                            <path d="M8 10.5V7.5A4 4 0 0 1 16 7.5V10.5"/>
+                        </svg>
+                        Admin Login
+                    </button>
+                    <div class="admin-active-group" id="admin-active-group" hidden>
+                        <span class="admin-active-pill">Admin Mode</span>
+                        <button type="button" class="admin-toggle-btn" id="btn-admin-logout">Logout &amp; Back to Detection</button>
+                    </div>
+                </div>
             </div>
         </header>
 
+        <!-- ================================================================
+             BARU -- DASHBOARD ADMIN: Crowdsourcing Dataset & Continuous Training
+             Hanya tampil setelah admin login (body.admin-mode).
+             ================================================================ -->
+        <section class="admin-only" id="admin-dashboard" aria-label="Admin Dashboard">
+            <div class="card section-gap">
+                <div class="card-head-row">
+                    <h2 class="card-title">Crowdsourcing Dataset &amp; Continuous Training</h2>
+                    <button type="button" class="btn btn-outline" id="btn-admin-refresh">Refresh</button>
+                </div>
+                <p class="card-desc">Every valid user detection (upload or camera) is automatically queued in staging. Review each photo, fix its label if needed, approve it into the official dataset (<code>data/raw/</code>), then re-train the SVM model.</p>
+
+                <div class="admin-stats-grid" id="admin-stats-grid"></div>
+            </div>
+
+            <div class="admin-two-col">
+                <!-- Kurasi staging -->
+                <div class="card section-gap admin-curation-card">
+                    <div class="card-head-row">
+                        <h3 class="card-title">Staging Curation Queue</h3>
+                        <div class="admin-filter-tabs" id="admin-filter-tabs" role="tablist">
+                            <button type="button" class="filter-tab active" data-filter="all">All <span data-count="all">0</span></button>
+                            <button type="button" class="filter-tab" data-filter="sehat">Healthy <span data-count="sehat">0</span></button>
+                            <button type="button" class="filter-tab" data-filter="terkontaminasi">Moldy <span data-count="terkontaminasi">0</span></button>
+                            <button type="button" class="filter-tab" data-filter="campuran">Mixed <span data-count="campuran">0</span></button>
+                        </div>
+                    </div>
+                    <div class="staging-grid" id="staging-grid"></div>
+                </div>
+
+                <!-- Re-training -->
+                <div class="card section-gap admin-retrain-card">
+                    <h3 class="card-title">Model Re-Training (SVM)</h3>
+                    <div id="model-info-box" class="model-info-box"></div>
+                    <div class="retrain-actions">
+                        <button type="button" class="btn btn-primary-teal stepper-nav-btn" id="btn-retrain">Re-train Model Now</button>
+                        <button type="button" class="btn btn-outline stepper-nav-btn" id="btn-rollback">Rollback to Previous Model</button>
+                    </div>
+                    <div class="retrain-progress" id="retrain-progress" hidden>
+                        <div class="retrain-progress-bar"><div id="retrain-progress-fill"></div></div>
+                        <p id="retrain-progress-text">Preparing...</p>
+                    </div>
+                    <div id="retrain-result" class="retrain-result"></div>
+
+                    <h4 class="sub-panel-title admin-history-title">Recent Activity</h4>
+                    <ul class="admin-history" id="admin-history"></ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- BARU -- Modal login admin -->
+        <div class="modal-backdrop" id="admin-login-modal" hidden>
+            <form class="modal-card" id="admin-login-form" autocomplete="off">
+                <h3 class="card-title">Admin Login</h3>
+                <p class="card-desc">Enter the admin password to open the dataset curation &amp; re-training dashboard.</p>
+                <input type="password" id="admin-password" class="text-input" placeholder="Admin password" required>
+                <p class="modal-error" id="admin-login-error"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline stepper-nav-btn" id="btn-admin-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary-teal stepper-nav-btn">Login</button>
+                </div>
+            </form>
+        </div>
+
         <!-- ============ INPUT: UNGGAH & SAMPEL ============ -->
-        <section class="controls-grid" aria-label="Image Input">
+        <section class="controls-grid user-only" aria-label="Image Input">
 
             <div class="card">
                 <h2 class="card-title">Upload Corn Kernel Image</h2>
@@ -88,7 +167,7 @@
         </section>
 
         <!-- ============ DETEKSI REALTIME WEBCAM ============ -->
-        <section class="card section-gap" aria-label="Realtime Webcam Detection">
+        <section class="card section-gap user-only" aria-label="Realtime Webcam Detection">
             <h2 class="card-title">Realtime Detection (Webcam)</h2>
             <p class="card-desc">Turn on the camera to detect corn kernels live. The server processes one camera frame every second.</p>
 
@@ -108,7 +187,7 @@
         </section>
 
         <!-- ============ HASIL DETEKSI ============ -->
-        <main id="results-section">
+        <main id="results-section" class="user-only">
 
             <section class="status-banner" id="status-banner">
                 <div class="status-info">
@@ -116,6 +195,9 @@
                     <p id="status-desc">Summary of the evaluation results and mold contamination percentage.</p>
                 </div>
             </section>
+
+            <!-- BARU -- Info kontribusi dataset crowdsourcing + feedback opsional user -->
+            <section class="staging-notice" id="staging-notice" hidden></section>
 
             <section class="metrics-row" aria-label="Metrics Summary">
                 <div class="metric-card total">
@@ -551,5 +633,6 @@
     </div>
 
     <script src="/static/app.js?v=6"></script>
+    <script src="/static/admin.js?v=1"></script>
 </body>
 </html>

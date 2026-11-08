@@ -207,6 +207,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 6. Hybrid Stepper & Tab Pipeline Inspector Setup
     setupPipelineInspector(data);
 
+    // 7. BARU -- Info kontribusi dataset crowdsourcing (fungsi ada di admin.js)
+    if (typeof window.renderStagingNotice === 'function') {
+      window.renderStagingNotice(data.staging);
+    }
+
     // Reveal section and smooth scroll
     resultsSection.style.display = 'flex';
     resultsSection.scrollIntoView({ behavior: 'smooth' });
