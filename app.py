@@ -3,6 +3,12 @@ import io
 import base64
 import cv2
 import numpy as np
+from dotenv import load_dotenv
+
+# BARU -- baca konfigurasi rahasia (ADMIN_PASSWORD) dari file .env di root proyek.
+# Harus dipanggil SEBELUM import modul yang membaca os.environ.
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 from typing import Optional
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Header, Query
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -26,6 +32,11 @@ pipeline = CornDiseasePipeline()
 # BARU -- Crowdsourcing dataset & continuous training
 admin_auth = crowdsource.AdminAuth()
 retrain_manager = crowdsource.RetrainManager(pipeline)
+# Seragamkan nama file crowdsourcing versi lama (crowd_*.jpg) -> normal_XXX / virus_XXX
+crowdsource.migrate_legacy_crowd_files()
+# Index hash seluruh foto di data/raw/ (termasuk dataset awal) supaya foto dataset
+# yang di-upload ulang untuk tes tidak masuk ke staging & tidak memunculkan feedback
+crowdsource.sync_raw_hashes()
 
 def mat_to_base64(mat, is_rgb=False):
     """Encodes OpenCV image (BGR or Gray) into base64 JPEG string."""
@@ -322,6 +333,11 @@ def require_admin(token: Optional[str]):
 
 @app.post("/api/admin/login")
 def admin_login(req: LoginRequest):
+    if not admin_auth.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin login is disabled: ADMIN_PASSWORD is not configured in the server's .env file",
+        )
     token = admin_auth.login(req.password)
     if not token:
         raise HTTPException(status_code=401, detail="Wrong admin password")

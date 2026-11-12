@@ -10,3 +10,4 @@ scikit-image==0.26.0
 pandas==3.0.5
 joblib==1.6.0
 pydantic==2.13.5
+python-dotenv==1.2.3

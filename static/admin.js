@@ -34,9 +34,12 @@
         box.className = 'staging-notice muted';
         box.innerHTML = '<strong>Not added to the dataset.</strong> No valid corn kernels were found, so this photo was discarded.';
         box.hidden = false;
+      } else if (staging && staging.reason === 'already_in_dataset') {
+        // Foto sudah ada di data/raw/ (dataset training awal atau sudah di-approve) -> sembunyikan kotak feedback
+        box.hidden = true;
       } else if (staging && staging.reason === 'duplicate') {
         box.className = 'staging-notice muted';
-        box.innerHTML = 'This exact photo is already in the dataset queue.';
+        box.innerHTML = 'This exact photo is already in the staging review queue.';
         box.hidden = false;
       } else {
         box.hidden = true;
@@ -219,9 +222,10 @@
         const t = escapeHtml((h.timestamp || '').replace('T', ' '));
         let text = '';
         if (h.action === 'approve') {
+          const fname = h.filename ? ` → <code>${escapeHtml(h.filename)}</code>` : '';
           text = h.relabeled
-            ? `Approved as <b>${LABELS[h.label]}</b> (relabeled from ${LABELS[h.from_category]})`
-            : `Approved as <b>${LABELS[h.label]}</b>`;
+            ? `Approved as <b>${LABELS[h.label]}</b> (relabeled from ${LABELS[h.from_category]})${fname}`
+            : `Approved as <b>${LABELS[h.label]}</b>${fname}`;
         } else if (h.action === 'reject') {
           text = `Rejected a ${LABELS[h.from_category] || ''} photo`;
         } else if (h.action === 'retrain') {

@@ -59,6 +59,27 @@ STAGING_CATEGORIES = ["sehat", "terkontaminasi", "campuran"]
 FEATURE_COLS = ["contrast", "correlation", "energy", "homogeneity", "hue", "saturation", "value"]
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp")
 
+# Penamaan file dataset resmi, diseragamkan dengan dataset asli tim:
+#   data/raw/sehat/normal_001.JPG, normal_002.JPG, ...
+#   data/raw/terkontaminasi/virus_001.JPG, virus_002.JPG, ...
+# Foto hasil crowdsourcing yang di-approve melanjutkan nomor terakhir.
+CLASS_PREFIX = {"sehat": "normal_", "terkontaminasi": "virus_"}
+DATASET_EXT = ".JPG"
+
+# Registry foto crowdsourcing yang sudah masuk dataset resmi:
+#   { "<hash>": {"label", "filename", "staging_id", "source", "approved_at"} }
+# Dipakai untuk (1) mencegah duplikat walaupun nama file sudah diseragamkan,
+# dan (2) menghitung berapa foto dataset yang berasal dari user.
+CROWD_REGISTRY = os.path.join(DATA_DIR, "crowd_registry.json")
+
+# Cache hash seluruh foto di data/raw/ (termasuk dataset awal normal_001.. & virus_001..):
+#   { "sehat/normal_001.JPG": "<12-char-sha1>", ... }
+# Supaya kalau foto dari dataset awal di-upload ke halaman deteksi, sistem langsung
+# tahu foto itu SUDAH ADA di dataset training dan tidak memasukkannya ke staging
+# (serta tidak memunculkan tombol feedback crowdsourcing).
+RAW_HASH_CACHE = os.path.join(DATA_DIR, "raw_hashes.json")
+_raw_hashes_mem = None  # set of hashes di memori untuk pengecekan O(1)
+
 # ID item staging hanya boleh berisi karakter aman (mencegah path traversal)
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_\-]+$")
 
@@ -107,8 +128,10 @@ def validate_category(category):
 class AdminAuth:
     """
     Login admin sederhana tanpa database:
-    - Password diambil dari environment variable ADMIN_PASSWORD
-      (default 'admin123' -- WAJIB diganti saat deploy).
+    - Password HANYA diambil dari environment variable ADMIN_PASSWORD, yang
+      dibaca otomatis dari file `.env` di root proyek (file itu di-.gitignore,
+      jadi password tidak pernah masuk ke repo). Tidak ada password default
+      di kode -- kalau ADMIN_PASSWORD kosong, login admin dinonaktifkan.
     - Login berhasil -> server membuat token acak yang berlaku TOKEN_TTL detik.
     - Endpoint admin wajib mengirim token lewat header 'X-Admin-Token'
       (atau query ?token=... khusus untuk <img src>).
@@ -117,11 +140,22 @@ class AdminAuth:
     TOKEN_TTL = 8 * 3600  # 8 jam
 
     def __init__(self):
-        self.password = os.environ.get("ADMIN_PASSWORD", "admin123")
+        self.password = os.environ.get("ADMIN_PASSWORD", "").strip()
         self._tokens = {}
         self._lock = threading.Lock()
+        if not self.password:
+            print(
+                "[Warning] ADMIN_PASSWORD is not set -- admin login is DISABLED. "
+                "Create a '.env' file (see '.env.example') containing ADMIN_PASSWORD=..."
+            )
+
+    @property
+    def enabled(self):
+        return bool(self.password)
 
     def login(self, password):
+        if not self.enabled:
+            return None
         if not secrets.compare_digest(str(password or ""), self.password):
             return None
         token = secrets.token_urlsafe(32)
@@ -177,15 +211,238 @@ def _image_hash(img):
     return hashlib.sha1(img.tobytes()).hexdigest()[:12]
 
 
-def _hash_exists(img_hash):
-    """Cegah foto yang sama persis tersimpan berkali-kali."""
+def _check_duplicate_hash(img_hash):
+    """
+    Cek apakah foto dengan `img_hash` sudah ada di dataset resmi (`data/raw/`)
+    atau di antrean `data/staging/`.
+    Return:
+      - "already_in_dataset" jika sudah ada di data/raw/ (baik dataset awal maupun hasil approve user)
+      - "duplicate" jika sudah ada di antrean staging
+      - None jika belum ada (foto benar-benar baru)
+    """
+    if img_hash in get_raw_hash_set():
+        return "already_in_dataset"
+    entry = _load_registry().get(img_hash)
+    if entry and os.path.exists(os.path.join(RAW_DIR, entry["label"], entry["filename"])):
+        return "already_in_dataset"
     for c in STAGING_CATEGORIES:
         if glob.glob(os.path.join(STAGING_DIR, c, f"*_{img_hash}.json")):
-            return True
+            return "duplicate"
+    return None
+
+
+def _hash_exists(img_hash):
+    return _check_duplicate_hash(img_hash) is not None
+
+
+def sync_raw_hashes():
+    """
+    Membangun/menyinkronkan cache hash untuk SEMUA foto di `data/raw/sehat` dan
+    `data/raw/terkontaminasi` (termasuk ribuan foto dataset awal).
+    Hanya foto yang belum ada di `data/raw_hashes.json` yang dihitung hash-nya,
+    sehingga startup berikutnya instan (< 5 ms).
+    Juga otomatis membersihkan item di `data/staging/` yang ternyata duplikat
+    dari foto di `data/raw/`.
+    """
+    global _raw_hashes_mem
+    from concurrent.futures import ThreadPoolExecutor
+
+    _ensure_dirs()
+    cache = {}
+    if os.path.exists(RAW_HASH_CACHE):
+        try:
+            with open(RAW_HASH_CACHE, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
+
+    current_files = {}
     for c in DATASET_CLASSES:
-        if glob.glob(os.path.join(RAW_DIR, c, f"crowd_*_{img_hash}.*")):
-            return True
-    return False
+        folder = os.path.join(RAW_DIR, c)
+        if os.path.isdir(folder):
+            for fname in os.listdir(folder):
+                if fname.lower().endswith(IMG_EXTS):
+                    rel_key = f"{c}/{fname}"
+                    current_files[rel_key] = os.path.join(folder, fname)
+
+    # Hapus entri cache yang filenya sudah dihapus dari data/raw/
+    dirty = False
+    for k in list(cache.keys()):
+        if k not in current_files:
+            cache.pop(k, None)
+            dirty = True
+
+    missing = [(k, path) for k, path in current_files.items() if k not in cache]
+    if missing:
+        print(f"[Crowdsource] Indexing pixel hashes for {len(missing)} dataset image(s) in data/raw/...")
+
+        def _hash_one(item):
+            k, path = item
+            img = cv2.imread(path)
+            if img is None:
+                return k, None
+            return k, _image_hash(img)
+
+        with ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 4))) as ex:
+            for k, h in ex.map(_hash_one, missing):
+                if h:
+                    cache[k] = h
+        dirty = True
+
+    if dirty:
+        tmp = RAW_HASH_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp, RAW_HASH_CACHE)
+
+    _raw_hashes_mem = set(cache.values())
+
+    # Bersihkan item staging yang ternyata sudah ada di data/raw/
+    for c in STAGING_CATEGORIES:
+        for meta_path in glob.glob(os.path.join(STAGING_DIR, c, "*.json")):
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                h = meta.get("hash")
+                item_id = meta.get("id")
+                if h and h in _raw_hashes_mem and item_id:
+                    folder = os.path.join(STAGING_DIR, c)
+                    for p in (
+                        os.path.join(folder, f"{item_id}.jpg"),
+                        os.path.join(folder, f"{item_id}_annotated.jpg"),
+                        meta_path,
+                    ):
+                        if os.path.exists(p):
+                            os.remove(p)
+            except Exception:
+                continue
+
+    return _raw_hashes_mem
+
+
+def get_raw_hash_set():
+    global _raw_hashes_mem
+    if _raw_hashes_mem is None:
+        return sync_raw_hashes()
+    return _raw_hashes_mem
+
+
+def _register_raw_hash(label, filename, img_hash):
+    """Tambahkan 1 foto baru ke cache raw_hashes saat admin klik Approve."""
+    global _raw_hashes_mem
+    if _raw_hashes_mem is None:
+        sync_raw_hashes()
+    _raw_hashes_mem.add(img_hash)
+    try:
+        cache = {}
+        if os.path.exists(RAW_HASH_CACHE):
+            with open(RAW_HASH_CACHE, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+        cache[f"{label}/{filename}"] = img_hash
+        tmp = RAW_HASH_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp, RAW_HASH_CACHE)
+    except Exception:
+        pass
+
+
+# ------------------------------------------------------------------
+# Registry & penamaan berurutan
+# ------------------------------------------------------------------
+def _load_registry():
+    if os.path.exists(CROWD_REGISTRY):
+        try:
+            with open(CROWD_REGISTRY, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_registry(reg):
+    tmp = CROWD_REGISTRY + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(reg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, CROWD_REGISTRY)  # atomic: registry tidak pernah setengah tertulis
+
+
+def _next_dataset_filename(label, registry=None):
+    """
+    Nama file berikutnya untuk kelas `label`, melanjutkan nomor tertinggi.
+    Nomor diambil dari GABUNGAN: isi folder data/raw/<label>, manifest training,
+    dan registry -- supaya nomor yang pernah dipakai (lalu filenya dihapus)
+    tidak dipakai ulang. Ini penting karena re-training inkremental mengenali
+    foto lama dari namanya; kalau nama dipakai ulang, fitur lama bisa terbawa.
+    """
+    prefix = CLASS_PREFIX[label]
+    pattern = re.compile(rf"^{re.escape(prefix)}(\d+)\.[A-Za-z]+$", re.IGNORECASE)
+    names = set()
+
+    folder = os.path.join(RAW_DIR, label)
+    if os.path.isdir(folder):
+        names.update(os.listdir(folder))
+    if os.path.exists(MANIFEST_CROP):
+        try:
+            df = pd.read_csv(MANIFEST_CROP, usecols=["file_asal", "label"])
+            names.update(df.loc[df["label"] == label, "file_asal"].astype(str))
+        except Exception:
+            pass
+    for e in (registry if registry is not None else _load_registry()).values():
+        if e.get("label") == label:
+            names.add(e.get("filename", ""))
+
+    max_num = 0
+    for n in names:
+        m = pattern.match(n)
+        if m:
+            max_num = max(max_num, int(m.group(1)))
+    return f"{prefix}{max_num + 1:03d}{DATASET_EXT}"
+
+
+def migrate_legacy_crowd_files():
+    """
+    Satu kali (idempotent): ganti nama file lama 'crowd_<id>_<hash>.jpg' di data/raw
+    menjadi format seragam normal_XXX.JPG / virus_XXX.JPG dan catat di registry.
+    Manifest training ikut di-update supaya fitur yang sudah diekstrak tidak hilang.
+    """
+    legacy = []
+    for label in DATASET_CLASSES:
+        for p in glob.glob(os.path.join(RAW_DIR, label, "crowd_*")):
+            legacy.append((label, p))
+    if not legacy:
+        return []
+
+    renamed = []
+    with _fs_lock:
+        reg = _load_registry()
+        df_crop = pd.read_csv(MANIFEST_CROP) if os.path.exists(MANIFEST_CROP) else None
+        for label, old_path in sorted(legacy):
+            old_name = os.path.basename(old_path)
+            stem = os.path.splitext(old_name)[0]          # crowd_<YYYYmmdd>_<HHMMSS>_<rand>_<hash>
+            parts = stem.split("_")
+            img_hash = parts[-1]
+            staging_id = "_".join(parts[1:])
+            new_name = _next_dataset_filename(label, reg)
+            os.rename(old_path, os.path.join(RAW_DIR, label, new_name))
+            reg[img_hash] = {
+                "label": label,
+                "filename": new_name,
+                "staging_id": staging_id,
+                "source": None,
+                "approved_at": datetime.now().isoformat(timespec="seconds"),
+                "migrated_from": old_name,
+            }
+            if df_crop is not None:
+                mask = (df_crop["label"] == label) & (df_crop["file_asal"] == old_name)
+                df_crop.loc[mask, "file_asal"] = new_name
+            renamed.append((old_name, new_name))
+        _save_registry(reg)
+        if df_crop is not None:
+            df_crop.to_csv(MANIFEST_CROP, index=False)
+    for old, new in renamed:
+        print(f"[Crowdsource] Renamed legacy dataset file {old} -> {new}")
+    return renamed
 
 
 def save_to_staging(original_img, results, source):
@@ -206,8 +463,9 @@ def save_to_staging(original_img, results, source):
         img_hash = _image_hash(original_img)
         with _fs_lock:
             _ensure_dirs()
-            if _hash_exists(img_hash):
-                return {"saved": False, "reason": "duplicate"}
+            dup_reason = _check_duplicate_hash(img_hash)
+            if dup_reason:
+                return {"saved": False, "reason": dup_reason}
 
             item_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(2)}_{img_hash}"
             folder = os.path.join(STAGING_DIR, category)
@@ -304,10 +562,11 @@ def list_staging():
 def get_dataset_stats():
     _ensure_dirs()
     raw = {c: count_images(os.path.join(RAW_DIR, c)) for c in DATASET_CLASSES}
-    crowd = {
-        c: len(glob.glob(os.path.join(RAW_DIR, c, "crowd_*")))
-        for c in DATASET_CLASSES
-    }
+    # Foto dari user dihitung dari registry (nama file sudah seragam dengan dataset asli)
+    crowd = {c: 0 for c in DATASET_CLASSES}
+    for e in _load_registry().values():
+        if e.get("label") in crowd and os.path.exists(os.path.join(RAW_DIR, e["label"], e["filename"])):
+            crowd[e["label"]] += 1
     staging = {
         c: len(glob.glob(os.path.join(STAGING_DIR, c, "*.json")))
         for c in STAGING_CATEGORIES
@@ -346,11 +605,28 @@ def approve_item(item_id, label):
             raise FileNotFoundError("Staging image file missing")
 
         os.makedirs(os.path.join(RAW_DIR, label), exist_ok=True)
-        dst_img = os.path.join(RAW_DIR, label, f"crowd_{item_id}.jpg")
-        shutil.move(src_img, dst_img)
 
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
+
+        # Nama seragam: normal_XXX.JPG / virus_XXX.JPG (lanjut dari nomor terakhir).
+        # Hash disimpan di registry (bukan di nama file) untuk pencegahan duplikat.
+        reg = _load_registry()
+        new_name = _next_dataset_filename(label, reg)
+        dst_img = os.path.join(RAW_DIR, label, new_name)
+        shutil.move(src_img, dst_img)
+
+        img_hash = meta.get("hash") or item_id.rsplit("_", 1)[-1]
+        reg[img_hash] = {
+            "label": label,
+            "filename": new_name,
+            "staging_id": item_id,
+            "source": meta.get("source"),
+            "approved_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        _save_registry(reg)
+        _register_raw_hash(label, new_name, img_hash)
+
         for extra in (meta_path, os.path.join(folder, f"{item_id}_annotated.jpg")):
             if os.path.exists(extra):
                 os.remove(extra)
@@ -362,8 +638,10 @@ def approve_item(item_id, label):
             "label": label,
             "relabeled": category != label,
             "source": meta.get("source"),
+            "filename": new_name,
+            "hash": img_hash,
         })
-    return {"id": item_id, "label": label, "path": dst_img}
+    return {"id": item_id, "label": label, "filename": new_name, "path": dst_img}
 
 
 def reject_item(item_id):
